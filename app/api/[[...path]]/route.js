@@ -7,8 +7,10 @@ import { signToken, verifySolanaSignature, getAuthUser } from "@/lib/solguard/au
 import { startWatcher } from "@/lib/solguard/watcher";
 import { listAgents, getAgent, runAgent } from "@/lib/solguard/agents";
 import { verifyUsdcPayment, getPaymentConfig } from "@/lib/solguard/payment";
-import { EXPLOITS } from "@/lib/solguard/exploits";
+import { getExploits } from "@/lib/solguard/exploitFeed";
 import { runTokenScan } from "@/lib/solguard/scanEngine";
+import { checkAgentRunLimit, checkUserGlobalLimit, checkIpAuthLimit, checkIpPublicLimit } from "@/lib/solguard/rateLimit";
+import { sanitizeAgentInputs } from "@/lib/solguard/sanitize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ async function handleRoute(request, segments) {
   const method = request.method;
   const path = "/" + (segments || []).join("/");
   const db = await getDb();
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "anon";
 
   // ---------- HEALTH ----------
   if (method === "GET" && path === "/health") return json({ status: "ok", timestamp: new Date().toISOString() });
@@ -50,6 +53,8 @@ async function handleRoute(request, segments) {
 
   // ---------- AUTH ----------
   if (method === "POST" && path === "/auth/nonce") {
+    const rl = checkIpAuthLimit({ ip });
+    if (!rl.ok) return json({ error: "Too many auth requests. Retry shortly." }, 429);
     const body = await request.json().catch(() => ({}));
     const walletAddress = body?.walletAddress?.trim();
     if (!isValidSolanaAddress(walletAddress)) return json({ error: "Invalid wallet address" }, 400);
@@ -105,6 +110,18 @@ async function handleRoute(request, segments) {
     if (!a) return json({ error: "Authentication required. Connect your wallet to run agents." }, 401);
     const user = a.user;
 
+    // Rate limit: per-user-per-agent + per-user-global
+    const isPremium = !!(await activeSubscription(db, user.id));
+    const rlAgent = checkAgentRunLimit({ userId: user.id, agentId: id, isPremium });
+    if (!rlAgent.ok) return json({ error: `Rate limit exceeded for this agent. Retry in ${Math.ceil(rlAgent.resetIn / 1000)}s.` }, 429);
+    const rlUser = checkUserGlobalLimit({ userId: user.id, isPremium });
+    if (!rlUser.ok) return json({ error: `Global rate limit exceeded. Retry in ${Math.ceil(rlUser.resetIn / 1000)}s.` }, 429);
+
+    // Sanitize inputs (strip control chars, length caps, SSRF protection on URL)
+    const san = sanitizeAgentInputs(inputs);
+    if (san.error) return json({ error: san.error }, 400);
+    const cleanInputs = san.inputs;
+
     // Payment resolution
     let billing = { method: paymentMethod };
     if (paymentMethod === "credit") {
@@ -122,8 +139,8 @@ async function handleRoute(request, segments) {
       return json({ error: "Invalid payment method" }, 400);
     }
 
-    // Run
-    const exec = await runAgent(id, inputs);
+    // Run with sanitized inputs
+    const exec = await runAgent(id, cleanInputs);
     if (exec.error) return json({ error: exec.error }, 400);
 
     // Deduct after success
@@ -136,7 +153,7 @@ async function handleRoute(request, segments) {
     // Persist report
     const reportId = uuidv4();
     const report = {
-      id: reportId, userId: user.id, agentId: id, agentName: agent.name, inputs, result: exec.result,
+      id: reportId, userId: user.id, agentId: id, agentName: agent.name, inputs: cleanInputs, result: exec.result,
       billing, createdAt: new Date(),
     };
     await db.collection("reports").insertOne(report);
@@ -264,7 +281,12 @@ async function handleRoute(request, segments) {
   }
 
   // ---------- EXPLOITS / STATS ----------
-  if (method === "GET" && path === "/exploits") return json({ exploits: EXPLOITS });
+  if (method === "GET" && path === "/exploits") {
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const exploits = await getExploits();
+    return json({ exploits, source: "live+fallback", updatedAt: new Date().toISOString() });
+  }
   if (method === "GET" && path === "/stats/overall") {
     const total = await db.collection("reports").countDocuments({});
     const today = await db.collection("reports").countDocuments({ createdAt: { $gt: new Date(Date.now() - 86400_000) } });

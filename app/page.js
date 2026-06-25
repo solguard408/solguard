@@ -843,57 +843,193 @@ function Dashboard({ user, setView, overallStats }) {
   );
 }
 
-// ===================== API PAGE =====================
+// ===================== API DOCS PAGE =====================
 function ApiPage() {
   const [keys, setKeys] = useState([]); const [newKey, setNewKey] = useState(null); const [label, setLabel] = useState(""); const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState("overview");
   async function load() { const r = await api("/api/keys"); if (r.ok) setKeys(r.data.keys || []); }
   useEffect(() => { load(); }, []);
   async function create() { setCreating(true); const r = await api("/api/keys", { method: "POST", body: JSON.stringify({ label: label || "Default" }) }); setCreating(false); if (r.ok) { setNewKey(r.data.key); setLabel(""); load(); } }
   async function revoke(id) { await api(`/api/keys/${id}`, { method: "DELETE" }); load(); }
+
+  const endpoints = [
+    { method: "GET", path: "/api/agents", desc: "List all 16 security agents.", auth: false },
+    { method: "GET", path: "/api/agents/:id", desc: "Get one agent's metadata, inputs, features.", auth: false },
+    { method: "POST", path: "/api/agents/:id/run", desc: "Execute an agent. Requires auth + a paymentMethod.", auth: true },
+    { method: "GET", path: "/api/reports", desc: "List your recent reports.", auth: true },
+    { method: "GET", path: "/api/reports/:id", desc: "Fetch a single report.", auth: true },
+    { method: "GET", path: "/api/subscriptions/plans", desc: "List subscription plans (Starter, Pro, Business).", auth: false },
+    { method: "POST", path: "/api/subscriptions/subscribe", desc: "Subscribe to a plan with on-chain USDC payment.", auth: true },
+    { method: "GET", path: "/api/payment/config", desc: "Returns USDC mint + destination wallet for payments.", auth: false },
+    { method: "GET", path: "/api/exploits", desc: "Live exploit feed (DeFiLlama + curated fallback).", auth: false },
+    { method: "GET", path: "/api/stats/overall", desc: "Platform-wide usage counters.", auth: false },
+    { method: "GET", path: "/api/me", desc: "Current authenticated user with credits + subscription.", auth: true },
+    { method: "POST", path: "/api/auth/nonce", desc: "Begin wallet-signed auth flow.", auth: false },
+    { method: "POST", path: "/api/auth/verify", desc: "Verify Solana signature, returns JWT.", auth: false },
+    { method: "GET", path: "/api/watchlist", desc: "Your monitored tokens (auto re-scan every 3 min).", auth: true },
+    { method: "POST", path: "/api/watchlist", desc: "Add a token to your watchlist.", auth: true },
+    { method: "GET", path: "/api/alerts/stream", desc: "Server-Sent Events for live alerts. Auth via ?token=JWT.", auth: true },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto px-5 py-10">
-      <div className="flex items-center gap-2 mb-2"><Code2 className="w-5 h-5 text-teal-400" /><h1 className="text-3xl font-bold">API Access</h1><span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 terminal-text">EARLY ACCESS</span></div>
-      <p className="text-zinc-400 mb-6">Generate API keys to call SolGuard agents from your backend. Full public SDK launching soon.</p>
-
-      <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30 mb-5">
-        <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-3">CREATE API KEY</h3>
-        <div className="flex gap-2">
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. Production bot)" className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-2.5 text-sm outline-none focus:border-teal-500/60" />
-          <button onClick={create} disabled={creating} className="px-4 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2"><Plus className="w-4 h-4" /> CREATE</button>
-        </div>
-        {newKey && (
-          <div className="mt-4 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/30">
-            <div className="text-xs terminal-text text-emerald-300 mb-2">⚠ COPY NOW — WON'T BE SHOWN AGAIN</div>
-            <div className="font-mono text-sm bg-zinc-900 p-2 rounded break-all">{newKey}</div>
-            <button onClick={() => { navigator.clipboard.writeText(newKey); setNewKey(null); }} className="mt-2 text-xs text-teal-300">COPY & DISMISS</button>
-          </div>
-        )}
+    <div className="max-w-5xl mx-auto px-5 py-10">
+      <div className="flex items-center gap-2 mb-2">
+        <Code2 className="w-5 h-5 text-teal-400" />
+        <h1 className="text-3xl font-bold">REST API</h1>
+        <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-teal-300 terminal-text">v0.1.0</span>
       </div>
+      <p className="text-zinc-400 mb-6">Programmatic access to every SolGuard agent. Authenticate with an API key (subscription-backed) or JWT.</p>
 
-      <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30 mb-5">
-        <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-3">EXAMPLE REQUEST</h3>
-        <pre className="text-xs terminal-text text-zinc-400 overflow-auto p-3 bg-zinc-950 rounded border border-zinc-800">{`POST /api/agents/token-audit/run
-Authorization: Bearer $JWT  (or X-API-Key: sg_live_...)
-Content-Type: application/json
-
-{
-  "inputs": { "tokenAddress": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
-  "paymentMethod": "subscription"
-}`}</pre>
-      </div>
-
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-        {keys.length === 0 ? <div className="p-8 text-center text-zinc-500">No keys yet.</div> : keys.map((k, i) => (
-          <div key={k.id} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-zinc-800" : ""} ${!k.isActive ? "opacity-50" : ""}`}>
-            <div>
-              <div className="font-bold">{k.label}</div>
-              <div className="text-xs font-mono text-zinc-500 mt-1">{k.key}</div>
-              <div className="text-xs text-zinc-600 mt-1">Used {k.usageCount}× · {new Date(k.createdAt).toLocaleDateString()}</div>
-            </div>
-            {k.isActive ? <button onClick={() => revoke(k.id)} className="text-xs px-3 py-1.5 rounded-md border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400 flex items-center gap-1.5"><Trash2 className="w-3 h-3" /> REVOKE</button> : <span className="text-xs text-zinc-500">REVOKED</span>}
-          </div>
+      <div className="flex gap-1 mb-6 border-b border-zinc-800">
+        {[["overview", "Overview"], ["endpoints", "Endpoints"], ["sdks", "SDKs"], ["keys", "Your Keys"]].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-xs terminal-text tracking-widest transition border-b-2 ${tab === k ? "border-teal-400 text-teal-300" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}>{l.toUpperCase()}</button>
         ))}
       </div>
+
+      {tab === "overview" && (
+        <div className="space-y-5">
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Base URL</h3>
+            <pre className="text-sm terminal-text text-teal-300 bg-zinc-950 p-3 rounded border border-zinc-800">https://solguard.ai/api</pre>
+          </div>
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Authentication</h3>
+            <p className="text-sm text-zinc-400 mb-3">Two methods. API keys are recommended for server-side use.</p>
+            <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`# Via API key (recommended for backends — subscription-backed)
+X-API-Key: sg_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Via JWT (browser / wallet-auth users)
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
+          </div>
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Payment Methods (when running an agent)</h3>
+            <ul className="space-y-1.5 text-sm">
+              <li><code className="text-teal-300">credit</code> · use one of your 2 non-renewable free credits</li>
+              <li><code className="text-teal-300">subscription</code> · debit your active plan's quota (Starter 100 / Pro 1000 / Business unlimited)</li>
+              <li><code className="text-teal-300">usdc</code> · provide <code>paymentSignature</code> of a confirmed 0.10 USDC transfer to our verification wallet</li>
+            </ul>
+          </div>
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Rate Limits</h3>
+            <ul className="space-y-1.5 text-sm">
+              <li>Per agent per user: <code className="text-teal-300">10 req/min</code> (free) · <code className="text-teal-300">60 req/min</code> (subscribers)</li>
+              <li>Global per user: <code className="text-teal-300">60 req/min</code> (free) · <code className="text-teal-300">300 req/min</code> (subscribers)</li>
+              <li>Public reads per IP: <code className="text-teal-300">120 req/min</code></li>
+              <li>Auth endpoints per IP: <code className="text-teal-300">20 req/min</code></li>
+            </ul>
+            <p className="text-xs text-zinc-500 mt-3">Exceeding limits returns <code>429</code> with a retry-after seconds hint in the body.</p>
+          </div>
+        </div>
+      )}
+
+      {tab === "endpoints" && (
+        <div className="space-y-2">
+          {endpoints.map((e, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800">
+              <span className={`text-[10px] terminal-text font-bold w-14 text-center py-1 rounded ${e.method === "GET" ? "bg-emerald-500/15 text-emerald-300" : e.method === "POST" ? "bg-teal-500/15 text-teal-300" : "bg-rose-500/15 text-rose-300"}`}>{e.method}</span>
+              <code className="terminal-text text-sm text-zinc-200 flex-1">{e.path}</code>
+              {e.auth && <span className="text-[10px] terminal-text text-amber-300">AUTH</span>}
+              <span className="text-xs text-zinc-500 hidden md:inline">{e.desc}</span>
+            </div>
+          ))}
+
+          <div className="mt-6 p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Example: Run Token Audit</h3>
+            <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`curl -X POST https://solguard.ai/api/agents/token-audit/run \\
+  -H "X-API-Key: sg_live_xxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "inputs": { "tokenAddress": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263" },
+    "paymentMethod": "subscription"
+  }'`}</pre>
+          </div>
+
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="font-bold mb-3">Sample Response</h3>
+            <pre className="text-xs terminal-text text-zinc-400 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`{
+  "reportId": "uuid…",
+  "agentId": "token-audit",
+  "agentName": "Token Audit",
+  "summary": "This token shows low risk … PROCEED WITH CAUTION.",
+  "riskScore": 25,
+  "riskLevel": "LOW",
+  "evidence": { … },
+  "recommendations": [],
+  "inputs": { "tokenAddress": "…" },
+  "createdAt": "2025-06-25T…"
+}`}</pre>
+          </div>
+        </div>
+      )}
+
+      {tab === "sdks" && (
+        <div className="space-y-5">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold flex items-center gap-2"><span className="text-amber-400">●</span> JavaScript SDK</h3>
+                <a href="/sdk/solguard.js" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
+              </div>
+              <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`import { SolGuard } from "./solguard.js";
+
+const sg = new SolGuard({ apiKey: "sg_live_…" });
+const r = await sg.runAgent("token-audit", {
+  tokenAddress: "DezXAZ8z…"
+}, { paymentMethod: "subscription" });
+console.log(r.summary, r.riskScore);`}</pre>
+            </div>
+            <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold flex items-center gap-2"><span className="text-emerald-400">●</span> Python SDK</h3>
+                <a href="/sdk/solguard.py" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
+              </div>
+              <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`from solguard import SolGuard
+
+sg = SolGuard(api_key="sg_live_…")
+r = sg.run_agent(
+  "token-audit",
+  inputs={"tokenAddress": "DezXAZ8z…"},
+  payment_method="subscription"
+)
+print(r["summary"], r["riskScore"])`}</pre>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300">
+            <strong>Note:</strong> These are minimal reference SDKs (single-file, no dependencies). npm/PyPI packages are landing soon — these files are stable to use today.
+          </div>
+        </div>
+      )}
+
+      {tab === "keys" && (
+        <div className="space-y-5">
+          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-3">CREATE API KEY</h3>
+            <div className="flex gap-2">
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. Production bot)" className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-2.5 text-sm outline-none focus:border-teal-500/60" />
+              <button onClick={create} disabled={creating} className="px-4 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2"><Plus className="w-4 h-4" /> CREATE</button>
+            </div>
+            {newKey && (
+              <div className="mt-4 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/30">
+                <div className="text-xs terminal-text text-emerald-300 mb-2">⚠ COPY NOW — WON'T BE SHOWN AGAIN</div>
+                <div className="font-mono text-sm bg-zinc-900 p-2 rounded break-all">{newKey}</div>
+                <button onClick={() => { navigator.clipboard.writeText(newKey); setNewKey(null); }} className="mt-2 text-xs text-teal-300">COPY & DISMISS</button>
+              </div>
+            )}
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+            {keys.length === 0 ? <div className="p-8 text-center text-zinc-500">No keys yet.</div> : keys.map((k, i) => (
+              <div key={k.id} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-zinc-800" : ""} ${!k.isActive ? "opacity-50" : ""}`}>
+                <div>
+                  <div className="font-bold">{k.label}</div>
+                  <div className="text-xs font-mono text-zinc-500 mt-1">{k.key}</div>
+                  <div className="text-xs text-zinc-600 mt-1">Used {k.usageCount}× · {new Date(k.createdAt).toLocaleDateString()}</div>
+                </div>
+                {k.isActive ? <button onClick={() => revoke(k.id)} className="text-xs px-3 py-1.5 rounded-md border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400 flex items-center gap-1.5"><Trash2 className="w-3 h-3" /> REVOKE</button> : <span className="text-xs text-zinc-500">REVOKED</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
