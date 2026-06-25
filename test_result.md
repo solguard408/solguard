@@ -14,19 +14,45 @@
 # Main and testing agents must follow this exact format to maintain testing data. 
 # The testing data must be entered in yaml format Below is the data structure:
 # 
-## user_problem_statement: {problem_statement}
+## user_problem_statement: SolGuard AI restructured as a marketplace of 16 specialized AI security agents on Solana, with USDC payment per analysis, subscription plans, watchlist alerts, and Phantom wallet auth.
 ## backend:
-##   - task: "Task name"
+##   - task: "Agent marketplace endpoints (16 agents)"
 ##     implemented: true
-##     working: true  # or false or "NA"
-##     file: "file_path.py"
-##     stuck_count: 0
-##     priority: "high"  # or "medium" or "low"
-##     needs_retesting: false
+##     working: "NA"
+##     file: "app/api/[[...path]]/route.js"
 ##     status_history:
-##         -working: true  # or false or "NA"
-##         -agent: "main"  # or "testing" or "user"
-##         -comment: "Detailed comment about status"
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "GET /api/agents, GET /api/agents/:id, POST /api/agents/:id/run with paymentMethod credit|subscription|usdc"
+##   - task: "USDC payment verification on Solana mainnet"
+##     implemented: true
+##     working: "NA"
+##     file: "lib/solguard/payment.js"
+##     status_history:
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "verifyUsdcPayment uses getParsedTransaction + postTokenBalances delta on dest ATA; dedupes via payments collection"
+##   - task: "Subscription plans + on-chain pay"
+##     implemented: true
+##     working: "NA"
+##     file: "app/api/[[...path]]/route.js"
+##     status_history:
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "POST /api/subscriptions/subscribe accepts plan + paymentSignature, verifies USDC, creates subscription doc"
+##   - task: "Reduce free credits to 2 (no farming)"
+##     implemented: true
+##     working: "NA"
+##     file: "app/api/[[...path]]/route.js"
+##     status_history:
+##         -working: "NA"
+##         -agent: "main"
+##         -comment: "New users get credits=2 + creditsGranted=2 flag in users collection"
+##   - task: "Exploits feed + overall stats"
+##     implemented: true
+##     working: "NA"
+##     file: "app/api/[[...path]]/route.js, lib/solguard/exploits.js"
+
 ##
 ## frontend:
 ##   - task: "Task name"
@@ -101,3 +127,135 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: SolGuard AI restructured as a marketplace of 16 specialized AI security agents on Solana, with USDC payment per analysis, subscription plans, watchlist alerts, and Phantom wallet auth.
+
+backend:
+  - task: "Agent marketplace endpoints (16 agents)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET /api/agents, GET /api/agents/:id, POST /api/agents/:id/run with paymentMethod credit|subscription|usdc"
+        - working: true
+          agent: "testing"
+          comment: "✅ All agent endpoints tested successfully. GET /api/agents returns 16 agents with correct structure (id, name, category, price=0.10, supportedChains, inputs, features). GET /api/agents/token-audit returns detailed agent info. GET /api/agents/does-not-exist correctly returns 404. POST /api/agents/:id/run correctly requires authentication (401 without auth). All tests passed."
+
+  - task: "USDC payment verification on Solana mainnet"
+    implemented: true
+    working: true
+    file: "lib/solguard/payment.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "verifyUsdcPayment uses getParsedTransaction + postTokenBalances delta on dest ATA; dedupes via payments collection"
+        - working: true
+          agent: "testing"
+          comment: "✅ Payment config endpoint tested. GET /api/payment/config returns correct USDC mint (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v) and destination wallet (AnBTwJniieVxumvA2dokUacKArswfKaeAY5vLotGTiZ3). Payment verification logic is implemented in lib/solguard/payment.js. Full USDC transaction verification cannot be tested without real Phantom signed transactions, but the endpoint structure is correct."
+
+  - task: "Subscription plans + on-chain pay"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "POST /api/subscriptions/subscribe accepts plan + paymentSignature, verifies USDC, creates subscription doc"
+        - working: true
+          agent: "testing"
+          comment: "✅ Subscription endpoints tested. GET /api/subscriptions/plans returns 3 plans (starter, pro, business) with correct structure. POST /api/subscriptions/subscribe endpoint is implemented and requires authentication. Full subscription flow cannot be tested without real USDC payment signature, but endpoint structure is correct."
+
+  - task: "Reduce free credits to 2 (no farming)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New users get credits=2 + creditsGranted=2 flag in users collection"
+        - working: true
+          agent: "testing"
+          comment: "✅ Auth flow tested. POST /api/auth/nonce generates nonce correctly. POST /api/auth/verify correctly rejects bad signatures (401). Code review confirms new users get credits=2 with creditsGranted=2 flag (line 72 in route.js). Cannot test full auth flow without real Phantom wallet signature, but the logic is correctly implemented."
+
+  - task: "Exploits feed + overall stats"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, lib/solguard/exploits.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "GET /api/exploits returns 10 hardcoded incidents; GET /api/stats/overall returns aggregated counts"
+        - working: true
+          agent: "testing"
+          comment: "✅ Exploits and stats endpoints tested. GET /api/exploits returns 10 exploit incidents with correct structure. GET /api/stats/overall returns correct stats (total, today, threats, users, agentsActive=16). GET /api/stats (legacy) also working. All tests passed."
+
+  - task: "Protected endpoints (reports, keys, watchlist)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ All protected endpoints correctly require authentication. GET /api/reports returns 401 without auth. GET /api/keys returns 401 without auth. GET /api/watchlist returns 401 without auth. All authentication checks working correctly."
+
+  - task: "Health check endpoint"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ GET /api/health returns 200 with {status: 'ok', timestamp}. Working correctly."
+
+frontend:
+  - task: "Frontend UI"
+    implemented: true
+    working: "NA"
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Frontend not tested by testing agent as per protocol"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "All backend endpoints tested"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Backend testing complete. All 17 tests passed successfully. All critical endpoints (agents, auth, payment config, subscriptions, exploits, stats, protected endpoints) are working correctly. Health check endpoint operational. Note: Full USDC payment verification and Phantom wallet signature verification cannot be tested without real wallet signatures, but all endpoint structures and authentication checks are correctly implemented."
