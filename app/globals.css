@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body { background: #09090b; color: #f4f4f5; }
+
+.neon-glow { box-shadow: 0 0 30px rgba(20,184,166,0.18); }
+.neon-border { border-color: #14b8a6; box-shadow: 0 0 14px rgba(20,184,166,0.35); }
+.terminal-text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: 0.04em; }
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(20,184,166,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20,184,166,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+.scanline::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(20,184,166,0.18), transparent);
+  animation: scanline 2.4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+.cursor-blink::after { content: "▍"; animation: blink 1s steps(1) infinite; color: #14b8a6; margin-left: 4px; }
+
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
