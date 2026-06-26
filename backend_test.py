@@ -7,7 +7,7 @@ import requests
 import time
 import sys
 
-BASE_URL = "https://freeze-check-2.preview.emergentagent.com"
+BASE_URL = "http://localhost:3000"
 API_URL = f"{BASE_URL}/api"
 
 def test_exploits_feed():

@@ -11,11 +11,17 @@ import { getExploits } from "@/lib/solguard/exploitFeed";
 import { runTokenScan } from "@/lib/solguard/scanEngine";
 import { checkAgentRunLimit, checkUserGlobalLimit, checkIpAuthLimit, checkIpPublicLimit } from "@/lib/solguard/rateLimit";
 import { sanitizeAgentInputs } from "@/lib/solguard/sanitize";
+import { initializeDatabase } from "@/lib/solguard/initDb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-startWatcher();
+initializeDatabase();
+if (process.env.VERCEL) {
+  console.log("[server] Running on Vercel serverless. Watcher interval disabled, use Vercel Crons.");
+} else {
+  startWatcher();
+}
 
 const SUBSCRIPTION_PLANS = {
   starter: { id: "starter", name: "Starter", priceUsdc: 9, quota: 100, days: 30 },
@@ -288,10 +294,15 @@ async function handleRoute(request, segments) {
     return json({ exploits, source: "live+fallback", updatedAt: new Date().toISOString() });
   }
   if (method === "GET" && path === "/stats/overall") {
-    const total = await db.collection("reports").countDocuments({});
-    const today = await db.collection("reports").countDocuments({ createdAt: { $gt: new Date(Date.now() - 86400_000) } });
-    const threats = await db.collection("reports").countDocuments({ "result.riskLevel": { $in: ["HIGH", "CRITICAL"] } });
-    const users = await db.collection("users").countDocuments({});
+    let total = 0, today = 0, threats = 0, users = 0;
+    try {
+      total = await db.collection("reports").countDocuments({});
+      today = await db.collection("reports").countDocuments({ createdAt: { $gt: new Date(Date.now() - 86400_000) } });
+      threats = await db.collection("reports").countDocuments({ "result.riskLevel": { $in: ["HIGH", "CRITICAL"] } });
+      users = await db.collection("users").countDocuments({});
+    } catch (e) {
+      console.warn("[db] Failed to fetch overall stats from database, using fallbacks:", e?.message);
+    }
     return json({ total, today, threats, users, agentsActive: listAgents().length });
   }
   if (method === "GET" && path === "/stats") {
