@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
+import BrandLogo from "./components/BrandLogo";
+import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem } from "./components/X402ComingSoon";
 import bs58 from "bs58";
 import {
   Shield, ShieldAlert, ShieldCheck, Search, Lock, AlertTriangle, CheckCircle2, XCircle,
@@ -27,8 +29,8 @@ function levelColor(level) {
   }
 }
 function categoryColor(cat) {
-  const m = { Token: "teal", Wallet: "violet", Liquidity: "cyan", Market: "amber", Social: "sky", Web: "emerald", AI: "rose", Advisory: "fuchsia" };
-  return m[cat] || "teal";
+  const m = { Token: "blue", Wallet: "violet", Liquidity: "cyan", Market: "amber", Social: "sky", Web: "emerald", AI: "rose", Advisory: "fuchsia" };
+  return m[cat] || "blue";
 }
 
 function authHeaders() {
@@ -55,12 +57,12 @@ function ScoreGauge({ score = 0, level = "LOW", size = "lg" }) {
   return (
     <div className={`relative ${dim} ${c.glow} rounded-full`}>
       <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
-        <circle cx="70" cy="70" r={R} stroke="#27272a" strokeWidth="10" fill="none" />
+        <circle cx="70" cy="70" r={R} stroke="#E2E8F0" strokeWidth="10" fill="none" />
         <circle cx="70" cy="70" r={R} stroke={c.hex} strokeWidth="10" fill="none" strokeDasharray={C} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.2s linear" }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className={`${fs} font-bold ${c.text} terminal-text`}>{display}</div>
-        <div className="text-[10px] tracking-widest text-zinc-500 uppercase">Risk</div>
+        <div className="text-[10px] tracking-widest text-slate-500 uppercase">Risk</div>
       </div>
     </div>
   );
@@ -68,18 +70,285 @@ function ScoreGauge({ score = 0, level = "LOW", size = "lg" }) {
 function RiskBadge({ level }) {
   const c = levelColor(level);
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-md bg-zinc-900 border ${c.border} ${c.text} terminal-text text-xs font-bold tracking-widest`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900 border ${c.border} ${c.text} terminal-text text-xs font-bold tracking-widest`}>
       <span className={`w-1.5 h-1.5 rounded-full ${c.bg} pulse-dot`} /> {level}
     </div>
   );
 }
-function StatCard({ label, value, color = "text-teal-400", sub }) {
+function StatCard({ label, value, color = "text-trust-600", sub }) {
   return (
-    <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
-      <div className="text-xs terminal-text tracking-widest text-zinc-500">{label.toUpperCase()}</div>
+    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-trust-sm">
+      <div className="text-xs terminal-text tracking-widest text-slate-500">{label.toUpperCase()}</div>
       <div className={`text-3xl font-bold mt-1 terminal-text ${color}`}>{value}</div>
-      {sub && <div className="text-xs text-zinc-600 mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
     </div>
+  );
+}
+
+function HeroSparkline({ color, variant = "line" }) {
+  const points = variant === "bar"
+    ? [28, 42, 35, 55, 48, 62, 45, 58, 52, 68, 55, 72]
+    : [40, 55, 45, 62, 50, 70, 58, 48, 65, 52, 68, 60];
+  const w = 280;
+  const h = 32;
+  if (variant === "bar") {
+    const barW = w / points.length - 2;
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-8" preserveAspectRatio="none" aria-hidden>
+        {points.map((p, i) => (
+          <rect
+            key={i}
+            x={i * (barW + 2) + 1}
+            y={h - (p / 72) * h}
+            width={barW}
+            height={(p / 72) * h}
+            rx={1.5}
+            fill={color}
+            opacity={0.85}
+          />
+        ))}
+      </svg>
+    );
+  }
+  const path = points.map((p, i) => {
+    const x = (i / (points.length - 1)) * w;
+    const y = h - (p / 72) * h;
+    return `${i === 0 ? "M" : "L"}${x},${y}`;
+  }).join(" ");
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-8" preserveAspectRatio="none" aria-hidden>
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function HeroStatCard({ label, value, subtitle, icon: Icon, accent, chartColor, chartVariant, compact = false }) {
+  if (compact) {
+    return (
+      <div className="rounded-xl bg-white border border-slate-200 shadow-trust-sm p-3 aspect-square flex flex-col min-w-0">
+        <div className="flex items-start gap-2 min-w-0">
+          <div className={`p-1.5 rounded-lg shrink-0 ${accent.iconBg}`}>
+            <Icon className={`w-3.5 h-3.5 ${accent.iconText}`} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[9px] terminal-text tracking-widest text-slate-500 leading-tight">{label.toUpperCase()}</div>
+            <div className={`text-xl font-bold leading-none mt-0.5 terminal-text ${accent.valueText}`}>{value}</div>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-500 mt-2 leading-snug line-clamp-2 flex-1">{subtitle}</p>
+        <div className="mt-auto pt-2">
+          <HeroSparkline color={chartColor} variant={chartVariant} />
+          <div className="flex justify-between mt-0.5 text-[7px] terminal-text text-slate-400">
+            <span>00:00</span>
+            <span>24:00</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-white border border-slate-200 shadow-trust-sm p-3.5 sm:p-4">
+      <div className="flex items-start gap-2.5 mb-2.5">
+        <div className={`p-2 rounded-lg shrink-0 ${accent.iconBg}`}>
+          <Icon className={`w-4 h-4 ${accent.iconText}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] terminal-text tracking-widest text-slate-500">{label.toUpperCase()}</div>
+          <div className={`text-2xl font-bold leading-none mt-0.5 terminal-text ${accent.valueText}`}>{value}</div>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug line-clamp-2">{subtitle}</p>
+        </div>
+      </div>
+      <HeroSparkline color={chartColor} variant={chartVariant} />
+      <div className="flex justify-between mt-1 text-[8px] terminal-text text-slate-400">
+        <span>00:00</span>
+        <span>24:00</span>
+      </div>
+    </div>
+  );
+}
+
+const PIPELINE_STEPS = [
+  {
+    num: "01",
+    label: "CONNECT WALLET",
+    title: "Nonce signature auth",
+    description: "Server issues a single-use nonce. Phantom signs the message; backend verifies via nacl.sign.detached.verify() and issues a JWT. No password, no email.",
+    Icon: Wallet,
+  },
+  {
+    num: "02",
+    label: "SELECT AGENT",
+    title: "Scoped security modules",
+    description: "Pick from 16 specialized agents — Token Audit, Contract Security, Bundle Detection, Holder Distribution, Liquidity Depth, Website Scan, AI Consultant — each with defined inputs and scope.",
+    Icon: Layers,
+  },
+  {
+    num: "03",
+    label: "ON-CHAIN ANALYSIS",
+    title: "Helius RPC + heuristics",
+    description: "Agents query Solana mainnet via Helius: SPL mint account decode for mint/freeze authority, slot-density clustering for bundle snipes, holder concentration, and DEX liquidity depth.",
+    Icon: Activity,
+  },
+  {
+    num: "04",
+    label: "RISK REPORT",
+    title: "Weighted score + evidence",
+    description: "Structured output: 0–100 risk score, severity tier, and a full evidence trail — mint authority state, clustering flags, holder %, pool data — not just a headline number.",
+    Icon: BarChart3,
+  },
+];
+
+const CREDIBILITY_TAGS = [
+  "Helius RPC",
+  "nacl.sign.detached.verify()",
+  "MongoDB Atlas",
+  "Solana Mainnet",
+  "SPL mint account decode",
+  "~2–6s agent execution",
+  "USDC pay-per-run",
+  "0–100 weighted score",
+];
+
+function PipelineFlowDiagram() {
+  const nodes = [
+    { id: "wallet", label: "WALLET", sub: "sign nonce" },
+    { id: "agent", label: "AGENT", sub: "select scope" },
+    { id: "rpc", label: "HELIUS RPC", sub: "on-chain read" },
+    { id: "score", label: "RISK SCORE", sub: "0–100 + evidence" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-5">
+      <div className="text-[10px] terminal-text tracking-widest text-slate-400 mb-4">ARCHITECTURE.SKETCH</div>
+      <svg viewBox="0 0 520 88" className="w-full h-auto" aria-hidden="true">
+        {nodes.slice(0, -1).map((_, i) => {
+          const x1 = 60 + i * 130;
+          const x2 = x1 + 70;
+          return (
+            <g key={i}>
+              <line x1={x1 + 36} y1={44} x2={x2 + 24} y2={44} stroke="#BFDBFE" strokeWidth="1.5" strokeDasharray="4 3" />
+              <polygon points={`${x2 + 20},44 ${x2 + 14},40 ${x2 + 14},48`} fill="#93C5FD" />
+            </g>
+          );
+        })}
+        {nodes.map((n, i) => {
+          const x = 24 + i * 130;
+          return (
+            <g key={n.id}>
+              <rect x={x} y={18} width={96} height={52} rx={6} fill="#FFFFFF" stroke="#BFDBFE" strokeWidth="1.5" />
+              <text x={x + 48} y={38} textAnchor="middle" className="fill-slate-800" style={{ fontSize: 9, fontFamily: "Orbitron, sans-serif", fontWeight: 700 }}>{n.label}</text>
+              <text x={x + 48} y={54} textAnchor="middle" className="fill-slate-400" style={{ fontSize: 7.5, fontFamily: "Orbitron, sans-serif" }}>{n.sub}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function HowItWorksSection({ agentCount = 16 }) {
+  return (
+    <section className="relative max-w-7xl mx-auto px-5 pb-20">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-trust-sm overflow-hidden">
+        <div className="p-6 sm:p-8 lg:p-10 border-b border-slate-100">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-trust-200 bg-trust-50 text-trust-700 text-[10px] sm:text-xs terminal-text tracking-widest mb-4">
+            <Code2 className="w-3.5 h-3.5" /> // HOW SOLGUARD WORKS
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+            Is This Token Safe?
+          </h2>
+          <p className="mt-2 text-sm text-slate-500 max-w-2xl">
+            Four-stage scan pipeline — wallet auth, agent dispatch, on-chain heuristics, structured risk output.
+          </p>
+        </div>
+
+        <div className="p-6 sm:p-8 lg:p-10 space-y-10">
+          {/* Horizontal timeline — desktop */}
+          <ol className="hidden lg:grid lg:grid-cols-4 lg:gap-6 relative">
+            <div className="absolute top-5 left-[12%] right-[12%] h-px bg-trust-200" aria-hidden="true" />
+            {PIPELINE_STEPS.map((step, idx) => {
+              const StepIcon = step.Icon;
+              const desc = idx === 1
+                ? step.description.replace("16 specialized agents", `${agentCount} specialized agents`)
+                : step.description;
+              return (
+                <li key={step.num} className="relative flex flex-col">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-trust-50 border border-trust-200 flex items-center justify-center text-trust-700 relative z-10">
+                      <StepIcon className="w-[18px] h-[18px]" />
+                    </div>
+                    <span className="text-[10px] terminal-text text-trust-600 tracking-widest">{step.num}</span>
+                  </div>
+                  <div className="text-[10px] terminal-text tracking-[0.14em] text-slate-400 mb-1">{step.label}</div>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-2">{step.title}</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed flex-1">{desc}</p>
+                </li>
+              );
+            })}
+          </ol>
+
+          {/* Vertical timeline — mobile / tablet */}
+          <ol className="lg:hidden space-y-10">
+            {PIPELINE_STEPS.map((step, idx) => {
+              const StepIcon = step.Icon;
+              const desc = idx === 1
+                ? step.description.replace("16 specialized agents", `${agentCount} specialized agents`)
+                : step.description;
+              return (
+                <li key={step.num} className="flex gap-4 sm:gap-6">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-trust-50 border border-trust-200 flex items-center justify-center text-trust-700">
+                      <StepIcon className="w-[18px] h-[18px]" />
+                    </div>
+                    <span className="mt-2 text-[10px] terminal-text text-trust-600 tracking-widest">{step.num}</span>
+                    {idx < PIPELINE_STEPS.length - 1 && (
+                      <div className="w-px flex-1 min-h-[2rem] bg-trust-200 mt-2" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex-1 pt-0.5 min-w-0 pb-2">
+                    <div className="text-[10px] terminal-text tracking-[0.14em] text-slate-400 mb-1">{step.label}</div>
+                    <h3 className="text-base font-semibold text-slate-900 mb-2">{step.title}</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+
+          <PipelineFlowDiagram />
+
+          <div className="pt-2 border-t border-slate-100">
+            <div className="text-[10px] terminal-text tracking-widest text-slate-400 mb-3">STACK.VERIFIED</div>
+            <div className="flex flex-wrap gap-2">
+              {CREDIBILITY_TAGS.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex px-2.5 py-1 rounded-full border border-trust-200 bg-trust-50 text-[10px] sm:text-[11px] terminal-text text-trust-700 tracking-wide"
+                >
+                  {tag}
+                </span>
+              ))}
+              <X402Chip />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WhatsNextSection() {
+  return (
+    <section className="relative max-w-7xl mx-auto px-5 pb-16">
+      <div className="max-w-3xl">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">What&apos;s next</h2>
+        <p className="text-sm text-slate-500 mb-5">Upcoming capabilities on the SolGuard roadmap.</p>
+        <ul className="space-y-3 list-none m-0 p-0">
+          <X402RoadmapItem />
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -132,14 +401,14 @@ function PaymentModal({ open, onClose, agent, user, onConfirm, busy, error }) {
 
   if (!open || !agent) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur p-4" onClick={onClose}>
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-md w-full p-6 neon-glow" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur p-4" onClick={onClose}>
+      <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 neon-glow shadow-trust-md" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="text-xs text-teal-400 terminal-text tracking-widest mb-1">CONFIRM ANALYSIS</div>
+            <div className="text-xs text-trust-600 terminal-text tracking-widest mb-1">CONFIRM ANALYSIS</div>
             <h3 className="text-xl font-bold">{agent.name}</h3>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="space-y-2 mb-5">
@@ -156,9 +425,9 @@ function PaymentModal({ open, onClose, agent, user, onConfirm, busy, error }) {
         </div>
 
         {choice === "usdc" && (
-          <div className="text-xs text-zinc-500 mb-4 p-3 rounded-md bg-zinc-900 border border-zinc-800">
+          <div className="text-xs text-slate-500 mb-4 p-3 rounded-md bg-slate-50 border border-slate-200">
             You'll sign a transaction sending {agent.price} USDC to
-            <div className="font-mono text-teal-400 break-all mt-1">AnBTwJ…GTiZ3</div>
+            <div className="font-mono text-trust-600 break-all mt-1">AnBTwJ…GTiZ3</div>
             Verification happens on-chain before the agent runs.
           </div>
         )}
@@ -166,9 +435,9 @@ function PaymentModal({ open, onClose, agent, user, onConfirm, busy, error }) {
         {error && <div className="text-sm text-rose-400 mb-3 p-3 rounded-md bg-rose-500/10 border border-rose-500/20">⚠ {error}</div>}
 
         <div className="flex gap-2">
-          <button onClick={onClose} disabled={busy} className="flex-1 px-4 py-3 rounded-md bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition terminal-text tracking-wider text-sm">CANCEL</button>
+          <button onClick={onClose} disabled={busy} className="flex-1 px-4 py-3 rounded-md bg-white border border-slate-200 hover:bg-slate-50 transition terminal-text tracking-wider text-sm text-slate-700">CANCEL</button>
           <button onClick={() => onConfirm(choice)} disabled={busy}
-            className="flex-[2] px-4 py-3 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-50 transition terminal-text tracking-wider text-sm flex items-center justify-center gap-2">
+            className="flex-[2] px-4 py-3 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-50 transition terminal-text tracking-wider text-sm flex items-center justify-center gap-2">
             {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> {choice === "usdc" ? "WAITING FOR SIGNATURE…" : "RUNNING…"}</> : <>CONFIRM & RUN <ArrowRight className="w-4 h-4" /></>}
           </button>
         </div>
@@ -178,15 +447,15 @@ function PaymentModal({ open, onClose, agent, user, onConfirm, busy, error }) {
 }
 function PayOption({ icon, active, onClick, title, sub, priceText }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center justify-between p-3 rounded-lg border transition ${active ? "border-teal-500/60 bg-teal-500/5" : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700"}`}>
+    <button onClick={onClick} className={`w-full flex items-center justify-between p-3 rounded-lg border transition ${active ? "border-trust-400 bg-trust-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
       <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-md ${active ? "bg-teal-500/20 text-teal-300" : "bg-zinc-800 text-zinc-400"}`}>{icon}</div>
+        <div className={`p-2 rounded-md ${active ? "bg-trust-100 text-trust-700" : "bg-slate-100 text-slate-600"}`}>{icon}</div>
         <div className="text-left">
           <div className="font-semibold text-sm">{title}</div>
-          <div className="text-xs text-zinc-500">{sub}</div>
+          <div className="text-xs text-slate-500">{sub}</div>
         </div>
       </div>
-      <div className={`terminal-text text-sm font-bold ${active ? "text-teal-300" : "text-zinc-400"}`}>{priceText}</div>
+      <div className={`terminal-text text-sm font-bold ${active ? "text-trust-700" : "text-slate-600"}`}>{priceText}</div>
     </button>
   );
 }
@@ -203,16 +472,15 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
     { id: "exploits", label: "Exploit Watch" },
   ];
   return (
-    <header className="sticky top-0 z-30 border-b border-zinc-800/60 backdrop-blur bg-[#09090b]/80">
+    <header className="sticky top-0 z-30 border-b border-slate-200/60 backdrop-blur bg-white/90">
       <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
-        <button onClick={() => setView("home")} className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="relative"><Shield className="w-7 h-7 text-teal-400" /><div className="absolute inset-0 blur-md bg-teal-400/30 -z-10" /></div>
-          <div className="terminal-text font-bold tracking-widest hidden sm:block">SOLGUARD <span className="text-teal-400">AI</span></div>
+        <button onClick={() => setView("home")} className="flex-shrink-0 py-0.5" aria-label="SolGuard AI home">
+          <BrandLogo variant="header" />
         </button>
         <nav className="hidden lg:flex items-center gap-0.5 text-xs terminal-text flex-1 justify-center">
           {nav.filter((n) => !n.auth || user).map((n) => (
             <button key={n.id} onClick={() => setView(n.id)}
-              className={`px-3 py-1.5 rounded-md tracking-widest transition ${view === n.id || view.startsWith(n.id + ":") ? "bg-teal-500/10 text-teal-300 border border-teal-500/30" : "text-zinc-500 hover:text-zinc-200 border border-transparent"}`}>
+              className={`px-3 py-1.5 rounded-md tracking-widest transition ${view === n.id || view.startsWith(n.id + ":") ? "bg-trust-50 text-trust-700 border border-trust-200" : "text-slate-500 hover:text-slate-700 border border-transparent"}`}>
               {n.label.toUpperCase()}
             </button>
           ))}
@@ -220,28 +488,28 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 text-xs terminal-text">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md bg-trust-50 border border-trust-200 text-xs terminal-text text-slate-700">
                 <span className="text-emerald-400">●</span>
-                <span className="text-zinc-300">{truncate(user.walletAddress)}</span>
-                <span className="text-zinc-700">·</span>
-                <span className="text-teal-400">{user.credits} cr</span>
-                {user.subscription && <><span className="text-zinc-700">·</span><span className="text-amber-300">{user.subscription.plan}</span></>}
+                <span className="text-slate-700">{truncate(user.walletAddress)}</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-trust-600">{user.credits} cr</span>
+                {user.subscription && <><span className="text-slate-400">·</span><span className="text-amber-300">{user.subscription.plan}</span></>}
               </div>
-              <button onClick={onLogout} className="p-2 rounded-md bg-zinc-900 border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400"><LogOut className="w-3.5 h-3.5" /></button>
+              <button onClick={onLogout} className="p-2 rounded-md bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-600"><LogOut className="w-3.5 h-3.5" /></button>
             </>
           ) : (
             <button onClick={onConnect} disabled={connecting}
-              className="px-4 py-2 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-50 transition text-sm terminal-text tracking-wider flex items-center gap-2">
+              className="px-4 py-2 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-50 transition text-sm terminal-text tracking-wider flex items-center gap-2">
               <Wallet className="w-4 h-4" /> {connecting ? "CONNECTING…" : "CONNECT"}
             </button>
           )}
         </div>
       </div>
       {walletError && <div className="text-xs text-rose-400 max-w-7xl mx-auto px-5 pb-2">{walletError}</div>}
-      <nav className="lg:hidden flex items-center gap-1 overflow-x-auto px-3 py-2 text-[11px] terminal-text border-t border-zinc-900">
+      <nav className="lg:hidden flex items-center gap-1 overflow-x-auto px-3 py-2 text-[11px] terminal-text border-t border-slate-200">
         {nav.filter((n) => !n.auth || user).map((n) => (
           <button key={n.id} onClick={() => setView(n.id)}
-            className={`px-2.5 py-1 rounded whitespace-nowrap ${view === n.id || view.startsWith(n.id + ":") ? "bg-teal-500/10 text-teal-300" : "text-zinc-500"}`}>
+            className={`px-2.5 py-1 rounded whitespace-nowrap ${view === n.id || view.startsWith(n.id + ":") ? "bg-trust-50 text-trust-700" : "text-slate-500"}`}>
             {n.label.toUpperCase()}
           </button>
         ))}
@@ -254,49 +522,105 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
 function Home({ agents, setView, overallStats, exploits }) {
   return (
     <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full bg-teal-500/20 blur-[120px]" />
+      <div className="pointer-events-none absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full bg-trust-100 blur-[120px]" />
       <div className="pointer-events-none absolute top-40 -right-40 w-[520px] h-[520px] rounded-full bg-rose-500/15 blur-[140px]" />
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
-      <section className="relative max-w-7xl mx-auto px-5 pt-16 pb-20">
-        <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-teal-300 text-xs terminal-text tracking-widest mb-6">
-            <Sparkles className="w-3.5 h-3.5" /> MARKETPLACE OF AI SECURITY AGENTS
+      <section className="relative max-w-7xl mx-auto px-5 pt-12 pb-16 lg:pb-20">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,540px)] gap-8 lg:gap-10 xl:gap-12 items-start lg:max-w-6xl lg:mx-auto">
+          {/* Left — copy & CTAs */}
+          <div className="flex flex-col items-start text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-trust-200 bg-trust-50 text-trust-700 text-xs terminal-text tracking-widest mb-3">
+              <Sparkles className="w-3.5 h-3.5" /> MARKETPLACE OF AI SECURITY AGENTS
+            </div>
+            <X402HeroPill className="mb-6" />
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-tight tracking-tight text-slate-900">
+              Is This <span className="text-trust-600">Token Safe?</span>
+            </h1>
+            <p className="mt-4 text-xl sm:text-2xl font-bold text-slate-800 max-w-xl leading-snug">
+              Ask <span className="text-trust-600">SolGuard.</span> Get a real answer in seconds, not hours.
+            </p>
+            <p className="mt-5 text-slate-600 max-w-lg text-base sm:text-lg leading-relaxed">
+              SolGuard isn&apos;t one scanner. It&apos;s a marketplace of 16+ specialized AI security agents. Pick the exact analysis you need. Pay only $0.10 USDC per run — or subscribe.
+            </p>
+            <div className="mt-8 w-full sm:max-w-md flex flex-col gap-3">
+              <button
+                onClick={() => setView("explorer")}
+                className="w-full px-7 py-3.5 rounded-lg bg-trust-600 text-white font-bold hover:bg-trust-500 transition terminal-text tracking-wider neon-glow flex items-center justify-center gap-2"
+              >
+                EXPLORE SECURITY AGENTS <ArrowRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView("subscriptions")}
+                className="w-full px-7 py-3.5 rounded-lg border border-trust-300 bg-white text-trust-700 hover:bg-trust-50 transition terminal-text tracking-wider text-sm font-bold"
+              >
+                VIEW SUBSCRIPTIONS
+              </button>
+            </div>
+            <div className="mt-10 lg:mt-12">
+              <BrandLogo variant="header" />
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-6xl font-bold leading-tight tracking-tight">
-            DeFi Security Is Broken.<br/>
-            <span className="bg-gradient-to-r from-teal-300 to-emerald-400 bg-clip-text text-transparent">We Built Specialized AI Auditors For It.</span>
-          </h1>
-          <p className="mt-6 text-zinc-400 max-w-2xl text-lg">
-            SolGuard isn't one scanner. It's a marketplace of 16+ specialized AI security agents. Pick the exact analysis you need. Pay only $0.10 USDC per run — or subscribe.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center gap-3">
-            <button onClick={() => setView("explorer")}
-              className="px-7 py-3.5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 transition terminal-text tracking-wider neon-glow flex items-center gap-2">
-              EXPLORE SECURITY AGENTS <ArrowRight className="w-4 h-4" />
-            </button>
-            <button onClick={() => setView("subscriptions")} className="px-7 py-3.5 rounded-md border border-zinc-800 hover:border-teal-500/40 hover:text-teal-300 transition terminal-text tracking-wider text-sm">VIEW SUBSCRIPTIONS</button>
-          </div>
-        </div>
 
-        {/* live stats strip */}
-        {overallStats && (
-          <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto">
-            <StatCard label="Analyses Today" value={overallStats.today ?? 0} color="text-teal-400" />
-            <StatCard label="Total Analyses" value={overallStats.total ?? 0} color="text-emerald-400" />
-            <StatCard label="Threats Detected" value={overallStats.threats ?? 0} color="text-rose-400" />
-            <StatCard label="Active Agents" value={`${overallStats.agentsActive ?? 16}/16`} color="text-amber-400" />
-          </div>
-        )}
+          {/* Right — live stat cards */}
+          {overallStats && (
+            <div className="grid grid-cols-2 gap-2.5 w-full max-w-[540px] mx-auto lg:mx-0">
+              <HeroStatCard
+                compact
+                label="Analyses Today"
+                value={overallStats.today ?? 0}
+                subtitle={(overallStats.today ?? 0) > 0 ? "Analyses performed today." : "No analyses performed today."}
+                icon={Activity}
+                accent={{ iconBg: "bg-trust-100", iconText: "text-trust-600", valueText: "text-trust-600" }}
+                chartColor="#2563EB"
+                chartVariant="line"
+              />
+              <HeroStatCard
+                compact
+                label="Total Analyses"
+                value={overallStats.total ?? 0}
+                subtitle="Total token analyses completed."
+                icon={FileText}
+                accent={{ iconBg: "bg-emerald-100", iconText: "text-emerald-600", valueText: "text-emerald-500" }}
+                chartColor="#10b981"
+                chartVariant="bar"
+              />
+              <HeroStatCard
+                compact
+                label="Threats Detected"
+                value={overallStats.threats ?? 0}
+                subtitle={(overallStats.threats ?? 0) > 0 ? "High-risk findings flagged." : "No threats detected."}
+                icon={ShieldAlert}
+                accent={{ iconBg: "bg-rose-100", iconText: "text-rose-500", valueText: "text-rose-500" }}
+                chartColor="#f43f5e"
+                chartVariant="line"
+              />
+              <HeroStatCard
+                compact
+                label="Agents Used (30d)"
+                value={`${overallStats.agentsUsedLast30Days ?? 0}/${overallStats.agentsTotal ?? overallStats.agentsActive ?? 16}`}
+                subtitle="Distinct agents run in the last 30 days."
+                icon={Users}
+                accent={{ iconBg: "bg-amber-100", iconText: "text-amber-600", valueText: "text-amber-500" }}
+                chartColor="#f59e0b"
+                chartVariant="bar"
+              />
+            </div>
+          )}
+        </div>
       </section>
+
+      <HowItWorksSection agentCount={agents.length} />
+
+      <WhatsNextSection />
 
       {/* Agents Marketplace preview */}
       <section className="relative max-w-7xl mx-auto px-5 pb-16">
         <div className="flex items-end justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold">Featured Agents</h2>
-            <p className="text-zinc-500 text-sm mt-1">Specialized AI security services — pick what you need.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Featured Agents</h2>
+            <p className="text-slate-500 text-sm mt-1">Specialized AI security services — pick what you need.</p>
           </div>
-          <button onClick={() => setView("explorer")} className="text-xs terminal-text text-teal-400 hover:text-teal-300 tracking-widest flex items-center gap-1">VIEW ALL → </button>
+          <button onClick={() => setView("explorer")} className="text-xs terminal-text text-trust-600 hover:text-trust-700 tracking-widest flex items-center gap-1">VIEW ALL → </button>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {agents.slice(0, 6).map((a) => <AgentCard key={a.id} agent={a} onOpen={() => setView(`agent:${a.id}`)} />)}
@@ -306,26 +630,26 @@ function Home({ agents, setView, overallStats, exploits }) {
       {/* Exploit Watch teaser */}
       {exploits && exploits.length > 0 && (
         <section className="relative max-w-7xl mx-auto px-5 pb-20">
-          <div className="rounded-2xl bg-gradient-to-br from-rose-500/5 to-zinc-900/40 border border-rose-500/20 p-6">
+          <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white border border-rose-500/20 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30"><Flame className="w-5 h-5 text-rose-400" /></div>
                 <div>
                   <div className="flex items-center gap-2"><h3 className="font-bold text-lg">Exploit Watch</h3><span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500 text-black terminal-text">LIVE</span></div>
-                  <div className="text-xs text-zinc-500">Real-world Solana exploits — real losses.</div>
+                  <div className="text-xs text-slate-500">Real-world Solana exploits — real losses.</div>
                 </div>
               </div>
               <button onClick={() => setView("exploits")} className="text-xs terminal-text text-rose-400 hover:text-rose-300">VIEW FEED →</button>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {exploits.slice(0, 3).map((e) => (
-                <div key={e.id} className="p-3 rounded-lg bg-zinc-900/60 border border-zinc-800">
+                <div key={e.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-bold text-sm">{e.project}</div>
                     <div className="text-rose-400 terminal-text text-sm font-bold">${(e.lossUsd / 1_000_000).toFixed(1)}M</div>
                   </div>
-                  <div className="text-xs text-zinc-500 mb-1">{e.vector} · {e.chain}</div>
-                  <div className="text-xs text-zinc-400 line-clamp-2">{e.summary}</div>
+                  <div className="text-xs text-slate-500 mb-1">{e.vector} · {e.chain}</div>
+                  <div className="text-xs text-slate-600 line-clamp-2">{e.summary}</div>
                 </div>
               ))}
             </div>
@@ -340,19 +664,20 @@ function Home({ agents, setView, overallStats, exploits }) {
 function AgentCard({ agent, onOpen }) {
   const Icon = ICONS[agent.icon] || Shield;
   return (
-    <button onClick={onOpen} className="group text-left p-5 rounded-2xl bg-zinc-900/40 border border-zinc-800 hover:border-teal-500/50 hover:bg-zinc-900/70 transition-all flex flex-col">
+    <button onClick={onOpen} className="group text-left p-5 rounded-2xl bg-white border border-slate-200 shadow-trust-sm hover:border-trust-400 hover:bg-slate-50 transition-all flex flex-col">
       <div className="flex items-start justify-between mb-4">
-        <div className="p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400"><Icon className="w-5 h-5" /></div>
-        <div className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 terminal-text tracking-widest">{agent.category.toUpperCase()}</div>
+        <div className="p-2.5 rounded-lg bg-trust-50 border border-trust-200 text-trust-600"><Icon className="w-5 h-5" /></div>
+        <div className="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-600 terminal-text tracking-widest">{agent.category.toUpperCase()}</div>
       </div>
       <h3 className="font-bold mb-2 text-lg">{agent.name}</h3>
-      <p className="text-sm text-zinc-400 line-clamp-3 mb-4 flex-1">{agent.description}</p>
-      <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+      <p className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{agent.description}</p>
+      <div className="flex items-center justify-between pt-3 border-t border-slate-200">
         <div>
-          <div className="text-xl font-bold terminal-text">${agent.price.toFixed(2)} <span className="text-xs text-zinc-500 font-normal">USDC</span></div>
-          <div className="text-[10px] text-zinc-500 terminal-text tracking-wider">{agent.estimatedTime} · {agent.supportedChains.join(", ")}</div>
+          <div className="text-xl font-bold terminal-text">${agent.price.toFixed(2)} <span className="text-xs text-slate-500 font-normal">USDC</span></div>
+          <div className="mt-1.5"><X402InlineTag /></div>
+          <div className="text-[10px] text-slate-500 terminal-text tracking-wider mt-1.5">{agent.estimatedTime} · {agent.supportedChains.join(", ")}</div>
         </div>
-        <div className="text-teal-400 group-hover:translate-x-1 transition-transform"><ChevronRight className="w-5 h-5" /></div>
+        <div className="text-trust-600 group-hover:translate-x-1 transition-transform"><ChevronRight className="w-5 h-5" /></div>
       </div>
     </button>
   );
@@ -368,19 +693,19 @@ function Explorer({ agents, setView }) {
   return (
     <div className="max-w-7xl mx-auto px-5 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold">Agent Marketplace</h1>
-        <p className="text-zinc-500 mt-2">Specialized AI security agents — pick the exact analysis you need.</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Agent Marketplace</h1>
+        <p className="text-slate-500 mt-2">Specialized AI security agents — pick the exact analysis you need.</p>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search agents…"
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-md pl-9 pr-4 py-3 text-sm outline-none focus:border-teal-500/60" />
+            className="w-full bg-white border border-slate-200 rounded-md pl-9 pr-4 py-3 text-sm outline-none focus:border-trust-500" />
         </div>
         <div className="flex gap-1 overflow-x-auto">
           {cats.map((c) => (
             <button key={c} onClick={() => setCat(c)}
-              className={`px-3 py-2 rounded-md text-xs terminal-text tracking-wider whitespace-nowrap border ${cat === c ? "bg-teal-500/10 border-teal-500/40 text-teal-300" : "border-zinc-800 text-zinc-500 hover:border-zinc-700"}`}>
+              className={`px-3 py-2 rounded-md text-xs terminal-text tracking-wider whitespace-nowrap border ${cat === c ? "bg-trust-50 border-trust-300 text-trust-700" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}>
               {c.toUpperCase()}
             </button>
           ))}
@@ -389,7 +714,7 @@ function Explorer({ agents, setView }) {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((a) => <AgentCard key={a.id} agent={a} onOpen={() => setView(`agent:${a.id}`)} />)}
       </div>
-      {filtered.length === 0 && <div className="text-center py-12 text-zinc-500">No agents match.</div>}
+      {filtered.length === 0 && <div className="text-center py-12 text-slate-500">No agents match.</div>}
     </div>
   );
 }
@@ -412,7 +737,7 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
     })();
   }, [agentId]);
 
-  if (!agent) return <div className="max-w-5xl mx-auto px-5 py-20 text-center text-zinc-500"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+  if (!agent) return <div className="max-w-5xl mx-auto px-5 py-20 text-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
   const Icon = ICONS[agent.icon] || Shield;
   const allFilled = agent.inputs.every((i) => inputs[i.key] && inputs[i.key].trim().length > 0);
 
@@ -441,24 +766,24 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
 
   return (
     <div className="max-w-6xl mx-auto px-5 py-10">
-      <button onClick={() => setView("explorer")} className="text-xs terminal-text text-zinc-500 hover:text-teal-400 mb-6">← BACK TO MARKETPLACE</button>
+      <button onClick={() => setView("explorer")} className="text-xs terminal-text text-slate-500 hover:text-trust-600 mb-6">← BACK TO MARKETPLACE</button>
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-5">
           {/* header */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6">
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
             <div className="flex items-start gap-4 mb-4">
-              <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400"><Icon className="w-7 h-7" /></div>
+              <div className="p-3 rounded-xl bg-trust-50 border border-trust-200 text-trust-600"><Icon className="w-7 h-7" /></div>
               <div className="flex-1">
-                <div className="text-xs text-zinc-500 terminal-text tracking-widest mb-1">{agent.category.toUpperCase()} AGENT</div>
-                <h1 className="text-3xl font-bold mb-1">{agent.name}</h1>
-                <p className="text-zinc-400">{agent.description}</p>
+                <div className="text-xs text-slate-500 terminal-text tracking-widest mb-1">{agent.category.toUpperCase()} AGENT</div>
+                <h1 className="text-3xl font-bold mb-1 text-slate-900">{agent.name}</h1>
+                <p className="text-slate-600">{agent.description}</p>
               </div>
             </div>
-            {agent.longDescription && <p className="text-sm text-zinc-400 leading-relaxed border-t border-zinc-800 pt-4">{agent.longDescription}</p>}
+            {agent.longDescription && <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-200 pt-4">{agent.longDescription}</p>}
             <div className="flex flex-wrap gap-2 mt-4">
               {agent.supportedChains.map((c) => (
-                <span key={c} className="text-xs terminal-text px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5">
+                <span key={c} className="text-xs terminal-text px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> {c}
                 </span>
               ))}
@@ -466,62 +791,63 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
           </div>
 
           {/* features */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6">
-            <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-3">CAPABILITIES</h3>
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
+            <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-3">CAPABILITIES</h3>
             <ul className="grid sm:grid-cols-2 gap-2">
               {agent.features.map((f, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm text-zinc-300">
-                  <CheckCircle2 className="w-4 h-4 text-teal-400 flex-shrink-0" /> {f}
+                <li key={i} className="flex items-center gap-2 text-sm text-slate-700">
+                  <CheckCircle2 className="w-4 h-4 text-trust-600 flex-shrink-0" /> {f}
                 </li>
               ))}
             </ul>
           </div>
 
           {/* inputs */}
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6">
-            <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-4">INPUTS</h3>
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
+            <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">INPUTS</h3>
             {agent.inputs.map((i) => (
               <div key={i.key} className="mb-4">
-                <label className="text-xs terminal-text text-zinc-500 mb-1.5 block">{i.label}</label>
+                <label className="text-xs terminal-text text-slate-500 mb-1.5 block">{i.label}</label>
                 {i.multiline ? (
                   <textarea value={inputs[i.key] || ""} onChange={(e) => setInputs({ ...inputs, [i.key]: e.target.value })}
                     placeholder={i.placeholder} rows={4}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2 text-sm terminal-text outline-none focus:border-teal-500/60" />
+                    className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm terminal-text outline-none focus:border-trust-500" />
                 ) : (
                   <input value={inputs[i.key] || ""} onChange={(e) => setInputs({ ...inputs, [i.key]: e.target.value })}
                     placeholder={i.placeholder}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 py-2 text-sm terminal-text outline-none focus:border-teal-500/60" />
+                    className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-sm terminal-text outline-none focus:border-trust-500" />
                 )}
-                {i.example && <button onClick={() => setInputs({ ...inputs, [i.key]: i.example })} className="text-[11px] text-teal-400 hover:text-teal-300 mt-1">Use example →</button>}
+                {i.example && <button onClick={() => setInputs({ ...inputs, [i.key]: i.example })} className="text-[11px] text-trust-600 hover:text-trust-700 mt-1">Use example →</button>}
               </div>
             ))}
             {error && <div className="text-sm text-rose-400 mb-3">⚠ {error}</div>}
             <button onClick={start} disabled={!allFilled || busy}
-              className="w-full px-6 py-3 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-40 transition terminal-text tracking-wider flex items-center justify-center gap-2">
+              className="w-full px-6 py-3 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-40 transition terminal-text tracking-wider flex items-center justify-center gap-2">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {user ? "START ANALYSIS" : "CONNECT WALLET TO RUN"}
             </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-5">
-            <div className="text-xs terminal-text tracking-widest text-zinc-500 mb-2">PRICE</div>
+          <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-5">
+            <div className="text-xs terminal-text tracking-widest text-slate-500 mb-2">PRICE</div>
             <div className="text-4xl font-bold terminal-text">${agent.price.toFixed(2)}</div>
-            <div className="text-xs text-zinc-500 mt-1">per analysis · USDC on Solana</div>
-            <div className="mt-4 pt-4 border-t border-zinc-800 space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-zinc-500">Est. time</span><span className="terminal-text">{agent.estimatedTime}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Free credit</span><span className="terminal-text text-emerald-400">{user?.credits || 0} left</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Subscription</span><span className="terminal-text">{user?.subscription ? user.subscription.plan : "none"}</span></div>
+            <div className="text-xs text-slate-500 mt-1">per analysis · USDC on Solana</div>
+            <div className="mt-2"><X402InlineTag /></div>
+            <div className="mt-4 pt-4 border-t border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between"><span className="text-slate-500">Est. time</span><span className="terminal-text">{agent.estimatedTime}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Free credit</span><span className="terminal-text text-emerald-400">{user?.credits || 0} left</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Subscription</span><span className="terminal-text">{user?.subscription ? user.subscription.plan : "none"}</span></div>
             </div>
           </div>
 
           {recent.length > 0 && (
-            <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-5">
-              <div className="text-xs terminal-text tracking-widest text-zinc-500 mb-3">YOUR RECENT REPORTS</div>
+            <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-5">
+              <div className="text-xs terminal-text tracking-widest text-slate-500 mb-3">YOUR RECENT REPORTS</div>
               <div className="space-y-1">
                 {recent.map((r) => (
-                  <button key={r.id} onClick={() => setView(`report:${r.id}`)} className="w-full text-left p-2 rounded hover:bg-zinc-900 transition flex items-center justify-between text-xs">
-                    <div className="text-zinc-400 truncate">{Object.values(r.inputs).join(" · ").slice(0, 30)}</div>
+                  <button key={r.id} onClick={() => setView(`report:${r.id}`)} className="w-full text-left p-2 rounded hover:bg-slate-100 transition flex items-center justify-between text-xs">
+                    <div className="text-slate-600 truncate">{Object.values(r.inputs).join(" · ").slice(0, 30)}</div>
                     <RiskBadge level={r.result.riskLevel} />
                   </button>
                 ))}
@@ -539,7 +865,7 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
 // ===================== REPORT VIEW =====================
 function ReportView({ report, setView }) {
   const [copied, setCopied] = useState(false);
-  if (!report) return <div className="text-center py-20 text-zinc-500">No report.</div>;
+  if (!report) return <div className="text-center py-20 text-slate-500">No report.</div>;
   const r = report.result || report;
   const c = levelColor(r.riskLevel);
 
@@ -554,17 +880,17 @@ function ReportView({ report, setView }) {
 
   return (
     <div className="max-w-5xl mx-auto px-5 py-10">
-      <button onClick={() => setView("explorer")} className="text-xs terminal-text text-zinc-500 hover:text-teal-400 mb-6">← BACK TO EXPLORER</button>
+      <button onClick={() => setView("explorer")} className="text-xs terminal-text text-slate-500 hover:text-trust-600 mb-6">← BACK TO EXPLORER</button>
 
-      <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6 mb-5">
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
         <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
           <div className="flex-1">
-            <div className="text-xs text-teal-400 terminal-text tracking-widest mb-2">AGENT REPORT</div>
-            <h1 className="text-3xl font-bold mb-2">{report.agentName || report.agentId}</h1>
-            <div className="text-sm text-zinc-400 mb-3">Input: <span className="terminal-text text-zinc-300">{Object.values(report.inputs || {}).join(", ")}</span></div>
+            <div className="text-xs text-trust-600 terminal-text tracking-widest mb-2">AGENT REPORT</div>
+            <h1 className="text-3xl font-bold mb-2 text-slate-900">{report.agentName || report.agentId}</h1>
+            <div className="text-sm text-slate-600 mb-3">Input: <span className="terminal-text text-slate-700">{Object.values(report.inputs || {}).join(", ")}</span></div>
             <div className="flex gap-2">
-              <button onClick={copy} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 hover:border-teal-500/40 transition flex items-center gap-1.5"><Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}</button>
-              <button onClick={dl} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 hover:border-teal-500/40 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> JSON</button>
+              <button onClick={copy} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}</button>
+              <button onClick={dl} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Download className="w-3 h-3" /> JSON</button>
             </div>
           </div>
           <div className="flex flex-col items-center">
@@ -574,22 +900,22 @@ function ReportView({ report, setView }) {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-br from-teal-500/10 to-zinc-900/40 border border-teal-500/30 p-6 mb-5 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-teal-400" />
-        <div className="flex items-center gap-2 mb-3"><Sparkles className="w-4 h-4 text-teal-400" /><h3 className="terminal-text text-sm tracking-widest text-teal-300">SUMMARY</h3></div>
-        <p className="text-zinc-200 leading-relaxed whitespace-pre-wrap">{r.summary}</p>
+      <div className="rounded-2xl bg-gradient-to-br from-trust-50 to-white border border-trust-200 p-6 mb-5 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-trust-500" />
+        <div className="flex items-center gap-2 mb-3"><Sparkles className="w-4 h-4 text-trust-600" /><h3 className="terminal-text text-sm tracking-widest text-trust-700">SUMMARY</h3></div>
+        <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{r.summary}</p>
       </div>
 
       {r.recommendations?.length > 0 && (
-        <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6 mb-5">
-          <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-4">RECOMMENDATIONS</h3>
-          <ul className="space-y-2">{r.recommendations.map((x, i) => <li key={i} className="flex gap-3 p-3 rounded bg-zinc-900/60 border border-zinc-800 text-sm"><AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />{x}</li>)}</ul>
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
+          <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">RECOMMENDATIONS</h3>
+          <ul className="space-y-2">{r.recommendations.map((x, i) => <li key={i} className="flex gap-3 p-3 rounded bg-slate-50 border border-slate-200 text-sm"><AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />{x}</li>)}</ul>
         </div>
       )}
 
-      <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-6">
-        <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-4">EVIDENCE (RAW)</h3>
-        <pre className="text-xs terminal-text text-zinc-400 overflow-auto max-h-96 p-3 bg-zinc-950 rounded border border-zinc-800">{JSON.stringify(r.evidence, null, 2)}</pre>
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
+        <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">EVIDENCE (RAW)</h3>
+        <pre className="text-xs terminal-text text-slate-200 overflow-auto max-h-96 p-3 bg-slate-900 rounded border border-slate-800">{JSON.stringify(r.evidence, null, 2)}</pre>
       </div>
     </div>
   );
@@ -622,8 +948,8 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
   return (
     <div className="max-w-6xl mx-auto px-5 py-12">
       <div className="text-center mb-10">
-        <h1 className="text-3xl sm:text-5xl font-bold">Subscriptions</h1>
-        <p className="text-zinc-400 mt-3 max-w-2xl mx-auto">Prefer not to pay per call? Subscribe once and access every AI agent at a flat rate. Pay in USDC on Solana.</p>
+        <h1 className="text-3xl sm:text-5xl font-bold text-slate-900">Subscriptions</h1>
+        <p className="text-slate-600 mt-3 max-w-2xl mx-auto">Prefer not to pay per call? Subscribe once and access every AI agent at a flat rate. Pay in USDC on Solana.</p>
       </div>
 
       {error && <div className="text-rose-400 text-sm text-center mb-4">⚠ {error}</div>}
@@ -632,23 +958,23 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
         {plans.map((p) => {
           const popular = p.popular;
           return (
-            <div key={p.id} className={`relative rounded-2xl p-6 ${popular ? "bg-gradient-to-br from-teal-500/15 to-zinc-900/40 border-2 border-teal-500/50 neon-glow" : "bg-zinc-900/40 border border-zinc-800"}`}>
-              {popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-teal-500 text-black text-xs terminal-text font-bold tracking-widest">POPULAR</div>}
+            <div key={p.id} className={`relative rounded-2xl p-6 ${popular ? "bg-gradient-to-br from-trust-50 to-white border-2 border-trust-400 neon-glow" : "bg-white border border-slate-200"}`}>
+              {popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-trust-600 text-white text-xs terminal-text font-bold tracking-widest">POPULAR</div>}
               <div className="text-center mb-6">
-                <div className="text-zinc-400 terminal-text tracking-widest text-sm mb-2">{p.name.toUpperCase()}</div>
-                <div className="text-5xl font-bold">{p.custom ? "Custom" : `$${p.priceUsdc}`}<span className="text-base text-zinc-500">/mo</span></div>
-                <div className="text-zinc-400 mt-2">{p.quota === -1 ? "Unlimited analyses" : `${p.quota.toLocaleString()} analyses / 30 days`}</div>
-                {p.quota > 0 && <div className="text-xs text-zinc-500 mt-1">≈ ${(p.priceUsdc / p.quota).toFixed(3)} per analysis</div>}
+                <div className="text-slate-600 terminal-text tracking-widest text-sm mb-2">{p.name.toUpperCase()}</div>
+                <div className="text-5xl font-bold">{p.custom ? "Custom" : `$${p.priceUsdc}`}<span className="text-base text-slate-500">/mo</span></div>
+                <div className="text-slate-600 mt-2">{p.quota === -1 ? "Unlimited analyses" : `${p.quota.toLocaleString()} analyses / 30 days`}</div>
+                {p.quota > 0 && <div className="text-xs text-slate-500 mt-1">≈ ${(p.priceUsdc / p.quota).toFixed(3)} per analysis</div>}
               </div>
               <ul className="space-y-2 mb-6 text-sm">
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-teal-400" /> Access to all 16 AI agents</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-teal-400" /> Real-time watchlist alerts</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-teal-400" /> Report history & exports</li>
-                {p.id !== "starter" && <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-teal-400" /> Priority RPC routing</li>}
-                {p.id === "business" && <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-teal-400" /> Dedicated SLA</li>}
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Access to all 16 AI agents</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Real-time watchlist alerts</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Report history & exports</li>
+                {p.id !== "starter" && <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Priority RPC routing</li>}
+                {p.id === "business" && <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Dedicated SLA</li>}
               </ul>
               <button onClick={() => subscribe(p)} disabled={busy === p.id}
-                className={`w-full px-4 py-3 rounded-md font-bold terminal-text tracking-wider transition ${popular ? "bg-teal-500 text-black hover:bg-teal-400" : "bg-zinc-900 border border-zinc-700 hover:border-teal-500/50"} disabled:opacity-50 flex items-center justify-center gap-2`}>
+                className={`w-full px-4 py-3 rounded-md font-bold terminal-text tracking-wider transition ${popular ? "bg-trust-600 text-white hover:bg-trust-500" : "bg-white border border-slate-200 text-trust-700 hover:bg-trust-50 hover:border-trust-300"} disabled:opacity-50 flex items-center justify-center gap-2`}>
                 {busy === p.id ? <><Loader2 className="w-4 h-4 animate-spin" /> PROCESSING…</> : p.custom ? "CONTACT SALES" : "SUBSCRIBE"}
               </button>
             </div>
@@ -656,9 +982,9 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
         })}
       </div>
 
-      <div className="mt-12 max-w-3xl mx-auto p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800">
+      <div className="mt-12 max-w-3xl mx-auto p-6 rounded-2xl bg-white border border-slate-200 shadow-trust-sm">
         <h3 className="font-bold mb-3">How a subscription works</h3>
-        <ol className="space-y-2 text-sm text-zinc-400 list-decimal pl-5">
+        <ol className="space-y-2 text-sm text-slate-600 list-decimal pl-5">
           <li>Pay once in USDC on Solana — verified on-chain.</li>
           <li>Quota credited to your connected wallet for 30 days.</li>
           <li>Run any of the 16 agents — quota decreases by 1 per analysis.</li>
@@ -670,32 +996,203 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
 }
 
 // ===================== GUIDE =====================
-function Guide() {
-  const sections = [
-    { t: "How SolGuard Works", c: "SolGuard is a marketplace of 16+ specialized AI security agents. Instead of buying a generic report, you pick the exact analysis you need — contract authority, holder distribution, liquidity verification, AI consultation — and pay only for that single analysis." },
-    { t: "How Payments Work", c: "Every analysis costs $0.10 USDC on Solana mainnet. Connect Phantom, confirm the transfer to our verification wallet, and the agent runs automatically once the transaction is confirmed (~3 seconds). Subscription plans (Starter $9/mo, Pro $49/mo) give bulk quota at a discount." },
-    { t: "How AI Agents Work", c: "Each agent combines deterministic on-chain analysis (Helius RPC) with GPT-4o-mini synthesis. The on-chain layer gathers raw evidence (mint authorities, holder accounts, slot signatures, pool liquidity). The AI layer produces a trader-ready verdict and recommendation." },
-    { t: "How Reports Are Generated", c: "Each agent returns a structured report with: summary (3-sentence verdict), risk score (0–100), risk level (LOW / MEDIUM / HIGH / CRITICAL), evidence (raw JSON from on-chain calls), and recommendations." },
-    { t: "Risk Scoring", c: "Each agent has its own weighted formula. Token Audit combines authority status (+50pt for active mint+freeze), holder concentration (+25pt for >50% top 10), bundle clustering (+25pt), and liquidity health. Score ≥76 = CRITICAL, 51–75 HIGH, 26–50 MEDIUM, ≤25 LOW." },
-    { t: "Privacy", c: "We store: your wallet address, your scan history, your subscription. We never store: private keys, signed transaction payloads beyond verification, or user PII. Reports are visible only to the wallet that paid for them." },
-    { t: "FAQ", c: "Q: Are scans on-chain?\nA: Reads are on-chain via Helius RPC. AI synthesis happens server-side.\n\nQ: Refunds?\nA: All sales final. We refund only on verified agent crashes.\n\nQ: Can I integrate via API?\nA: API keys are issued today; full public API docs are launching soon." },
-    { t: "Developer Documentation (Coming Soon)", c: "REST API and SDK launching Q3 2025. Endpoints will mirror /api/agents/:id/run and accept either USDC payment signatures or X-API-Key headers for subscription-backed access. Webhook delivery for async results in roadmap." },
-  ];
+function GuideCodeBlock({ code }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
   return (
-    <div className="max-w-4xl mx-auto px-5 py-12">
-      <h1 className="text-3xl sm:text-5xl font-bold mb-2">Guide</h1>
-      <p className="text-zinc-400 mb-10">Everything you need to know to use SolGuard AI.</p>
-      <div className="space-y-4">
-        {sections.map((s, i) => (
-          <details key={i} className="rounded-2xl bg-zinc-900/40 border border-zinc-800 open:bg-zinc-900/60 transition">
-            <summary className="px-5 py-4 cursor-pointer font-bold flex items-center justify-between">
-              <span>{s.t}</span>
-              <ChevronRight className="w-4 h-4 text-zinc-500 transition group-open:rotate-90" />
-            </summary>
-            <div className="px-5 pb-5 text-sm text-zinc-400 whitespace-pre-line leading-relaxed">{s.c}</div>
-          </details>
-        ))}
+    <div className="relative rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+      <button
+        type="button"
+        onClick={copy}
+        className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded border border-slate-200 bg-white text-[11px] terminal-text text-slate-600 hover:border-trust-300 hover:text-trust-700 transition"
+      >
+        <Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}
+      </button>
+      <pre className="p-4 pr-24 text-xs sm:text-sm terminal-text text-slate-800 overflow-x-auto leading-relaxed">{code}</pre>
+    </div>
+  );
+}
+
+function GuideStep({ n, title, children }) {
+  return (
+    <li className="flex gap-4">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-trust-700 text-white flex items-center justify-center text-sm font-bold font-brand">
+        {n}
       </div>
+      <div className="flex-1 pt-0.5 pb-8">
+        <h3 className="font-bold text-slate-900 mb-2">{title}</h3>
+        <div className="text-sm text-slate-600 leading-relaxed">{children}</div>
+      </div>
+    </li>
+  );
+}
+
+function GuideFieldRow({ name, desc }) {
+  return (
+    <div className="px-4 py-3 rounded-lg border border-slate-200 bg-white text-sm">
+      <span className="terminal-text font-medium text-slate-900">{name}</span>
+      <span className="text-slate-500"> — {desc}</span>
+    </div>
+  );
+}
+
+function Guide({ setView }) {
+  const curlExample = `curl -i -X POST "https://solguard.ai/api/agents/token-audit/run" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <JWT>" \\
+  -d '{"inputs":{"tokenAddress":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"},"paymentMethod":"usdc","paymentSignature":"<tx_signature>"}'`;
+
+  const whatsHere = [
+    {
+      path: "/",
+      desc: "The explorer: search and browse every agent with its price, category, inputs, and supported chain.",
+    },
+    {
+      path: "/api/agents",
+      desc: "Machine-readable agent catalog (JSON) — id, price, inputs, features — for clients and the public SDK.",
+    },
+    {
+      path: "/api/agents/[id]/run",
+      desc: "One endpoint per agent — POST JSON with inputs and paymentMethod. Returns the structured risk report on success.",
+    },
+    {
+      path: "/api/payment/config",
+      desc: "Returns the USDC mint and destination wallet for browser-side SPL transfers before an agent run.",
+    },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto px-5 py-12 sm:py-16">
+      <header className="mb-12">
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-3">How it works</h1>
+        <p className="text-sm terminal-text text-slate-500 tracking-wide">
+          Pay-per-use security scans over USDC · Solana mainnet
+        </p>
+        <p className="mt-6 text-slate-600 leading-relaxed">
+          Each SolGuard agent is a fixed-price analysis service — see each agent&apos;s listed price ($0.10 USDC).
+          Instead of passwords or email accounts, you authenticate with your wallet: sign a server nonce via{" "}
+          <span className="terminal-text text-slate-800">nacl.sign.detached.verify()</span>, receive a JWT, and pay
+          per run with an on-chain USDC transfer. Agents query Helius RPC for mint authority, slot clustering, holder
+          concentration, and liquidity — then return a weighted risk report with evidence.
+        </p>
+      </header>
+
+      <section className="mb-14">
+        <h2 className="text-xl font-bold text-slate-900 mb-5">What&apos;s here</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {whatsHere.map(({ path, desc }) => (
+            <div key={path} className="p-4 rounded-lg border border-slate-200 bg-white">
+              <div className="terminal-text text-sm font-medium text-slate-900 mb-2">{path}</div>
+              <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-14">
+        <h2 className="text-xl font-bold text-slate-900 mb-6">The analysis flow</h2>
+        <ol className="list-none m-0 p-0">
+          <GuideStep n={1} title="Pick an agent & submit inputs">
+            On the explorer, open an agent, fill its inputs (e.g.{" "}
+            <span className="terminal-text text-slate-800">tokenAddress</span>), and hit Start Analysis. Your wallet
+            must be connected — unauthenticated requests return{" "}
+            <span className="terminal-text text-slate-800">401</span>.
+          </GuideStep>
+          <GuideStep n={2} title="Client sends USDC on-chain">
+            Phantom builds an SPL <span className="terminal-text text-slate-800">transferChecked</span> to the
+            destination ATA (~$0.10 USDC). Alternatively use a free credit or subscription quota via{" "}
+            <span className="terminal-text text-slate-800">paymentMethod: &quot;credit&quot;</span> or{" "}
+            <span className="terminal-text text-slate-800">&quot;subscription&quot;</span>.
+          </GuideStep>
+          <GuideStep n={3} title="Server verifies payment">
+            The backend polls Helius RPC with{" "}
+            <span className="terminal-text text-slate-800">getParsedTransaction</span>, validates USDC credited to
+            the destination ATA, and dedupes the signature in MongoDB. Failed or missing payment returns{" "}
+            <span className="terminal-text text-slate-800">402</span>.
+          </GuideStep>
+          <GuideStep n={4} title="Agent executes on-chain heuristics">
+            <span className="terminal-text text-slate-800">scanEngine</span> decodes the SPL mint account (mint/freeze
+            authority), groups launch signatures by slot for bundle detection, reads holder concentration and DEX pool
+            liquidity. Each agent applies its own weighted scoring formula.
+          </GuideStep>
+          <GuideStep n={5} title="Report is returned">
+            On success the server returns{" "}
+            <span className="terminal-text text-slate-800">200</span> JSON:{" "}
+            <span className="terminal-text text-slate-800">riskScore</span> (0–100),{" "}
+            <span className="terminal-text text-slate-800">riskLevel</span>, summary, evidence trail, and
+            recommendations. The report is persisted to your account at{" "}
+            <span className="terminal-text text-slate-800">/api/reports</span>.
+          </GuideStep>
+        </ol>
+      </section>
+
+      <section className="mb-14">
+        <h2 className="text-xl font-bold text-slate-900 mb-5">Try it yourself</h2>
+        <ol className="space-y-2 text-sm text-slate-600 list-decimal pl-5 mb-6 leading-relaxed">
+          <li>Get USDC in Phantom on Solana mainnet.</li>
+          <li>Connect your wallet (nonce sign → JWT via <span className="terminal-text text-slate-800">/api/auth/verify</span>).</li>
+          <li>Open the explorer, pick Token Audit, fill a mint address, and pay USDC.</li>
+          <li>
+            Or call an endpoint directly — without auth you get a{" "}
+            <span className="terminal-text text-slate-800">401</span>:
+          </li>
+        </ol>
+        <GuideCodeBlock code={curlExample} />
+        <p className="mt-3 text-xs text-slate-500">
+          POST JSON is the canonical call method. Include a valid{" "}
+          <span className="terminal-text">paymentSignature</span> from your USDC transfer when using{" "}
+          <span className="terminal-text">paymentMethod: &quot;usdc&quot;</span>.
+        </p>
+      </section>
+
+      <section className="mb-14">
+        <h2 className="text-xl font-bold text-slate-900 mb-5">Fields in play</h2>
+        <div className="space-y-2">
+          <GuideFieldRow name="Authorization" desc="client → server: JWT from wallet nonce signature auth" />
+          <GuideFieldRow name="paymentMethod" desc='run body: "usdc" | "credit" | "subscription"' />
+          <GuideFieldRow name="paymentSignature" desc="run body: Solana tx signature for the USDC SPL transfer" />
+          <GuideFieldRow name="inputs" desc="run body: agent-specific fields (tokenAddress, walletAddress, url, query)" />
+        </div>
+      </section>
+
+      <section className="mb-14">
+        <div className="text-[10px] terminal-text tracking-widest text-slate-400 mb-3">STACK.VERIFIED</div>
+        <div className="flex flex-wrap gap-2">
+          {["Helius RPC", "MongoDB Atlas", "Solana Mainnet", "USDC pay-per-run"].map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex px-2.5 py-1 rounded-full border border-trust-200 bg-trust-50 text-[10px] sm:text-[11px] terminal-text text-trust-700 tracking-wide"
+            >
+              {tag}
+            </span>
+          ))}
+          <X402Chip />
+        </div>
+      </section>
+
+      <nav className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-8 border-t border-slate-200 text-sm">
+        <button
+          type="button"
+          onClick={() => setView("explorer")}
+          className="text-trust-700 hover:text-trust-800 font-medium transition"
+        >
+          ← Explorer
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("subscriptions")}
+          className="text-trust-700 hover:text-trust-800 font-medium transition sm:text-right"
+        >
+          Subscriptions →
+        </button>
+      </nav>
+      <p className="mt-6 text-xs terminal-text text-slate-400 tracking-wide text-center sm:text-left">
+        Pay-per-use verification over x402 (coming soon) · USDC · Solana mainnet
+      </p>
     </div>
   );
 }
@@ -707,21 +1204,21 @@ function ExploitWatch({ setView }) {
   const totalLoss = data.reduce((s, e) => s + (e.lossUsd || 0), 0);
   return (
     <div className="max-w-6xl mx-auto px-5 py-10">
-      <div className="rounded-2xl bg-gradient-to-br from-rose-500/10 to-zinc-900/40 border border-rose-500/30 p-6 mb-6">
-        <div className="flex items-center gap-3 mb-2"><Flame className="w-6 h-6 text-rose-400" /><h1 className="text-3xl font-bold">Exploit Watch</h1><span className="text-[10px] px-2 py-0.5 rounded bg-rose-500 text-black terminal-text font-bold">LIVE</span></div>
-        <p className="text-zinc-400">Real-world Solana & web3 exploits. {data.length} incidents · ${(totalLoss / 1_000_000).toFixed(1)}M lost in the tracked period.</p>
+      <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white border border-rose-500/30 p-6 mb-6">
+        <div className="flex items-center gap-3 mb-2"><Flame className="w-6 h-6 text-rose-500" /><h1 className="text-3xl font-bold text-slate-900">Exploit Watch</h1><span className="text-[10px] px-2 py-0.5 rounded bg-rose-500 text-black terminal-text font-bold">LIVE</span></div>
+        <p className="text-slate-600">Real-world Solana & web3 exploits. {data.length} incidents · ${(totalLoss / 1_000_000).toFixed(1)}M lost in the tracked period.</p>
       </div>
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-[11px] terminal-text tracking-widest text-zinc-500 border-b border-zinc-800">
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-[11px] terminal-text tracking-widest text-slate-500 border-b border-slate-200">
           <div className="col-span-3">INCIDENT</div><div className="col-span-2">LOSS</div><div className="col-span-2">VECTOR</div><div className="col-span-4">SUMMARY</div><div className="col-span-1">AGENT</div>
         </div>
         {data.map((e, i) => (
-          <div key={e.id} className={`p-4 grid md:grid-cols-12 gap-3 items-center ${i > 0 ? "border-t border-zinc-800" : ""} hover:bg-zinc-900/60 transition`}>
-            <div className="md:col-span-3"><div className="font-bold">{e.project}</div><div className="text-xs text-zinc-500">{e.date} · {e.chain}</div></div>
+          <div key={e.id} className={`p-4 grid md:grid-cols-12 gap-3 items-center ${i > 0 ? "border-t border-slate-200" : ""} hover:bg-slate-50 transition`}>
+            <div className="md:col-span-3"><div className="font-bold">{e.project}</div><div className="text-xs text-slate-500">{e.date} · {e.chain}</div></div>
             <div className="md:col-span-2 terminal-text font-bold text-rose-400">${(e.lossUsd / 1_000_000).toFixed(2)}M</div>
             <div className="md:col-span-2 text-xs text-amber-300">{e.vector}</div>
-            <div className="md:col-span-4 text-sm text-zinc-400">{e.summary}</div>
-            <div className="md:col-span-1"><button onClick={() => setView(`agent:${e.relevantAgent}`)} className="text-xs text-teal-400 hover:text-teal-300 terminal-text">RUN →</button></div>
+            <div className="md:col-span-4 text-sm text-slate-600">{e.summary}</div>
+            <div className="md:col-span-1"><button onClick={() => setView(`agent:${e.relevantAgent}`)} className="text-xs text-trust-600 hover:text-trust-700 terminal-text">RUN →</button></div>
           </div>
         ))}
       </div>
@@ -744,36 +1241,36 @@ function Watchlist({ setView }) {
   async function remove(a) { await api(`/api/watchlist/${encodeURIComponent(a)}`, { method: "DELETE" }); load(); }
   return (
     <div className="max-w-5xl mx-auto px-5 py-10">
-      <div className="flex items-center gap-2 mb-2"><Bell className="w-5 h-5 text-teal-400" /><h1 className="text-3xl font-bold">Watchlist</h1></div>
-      <p className="text-zinc-400 mb-6">Tokens are re-scanned every 3 minutes. Alerts fire on risk level changes.</p>
+      <div className="flex items-center gap-2 mb-2"><Bell className="w-5 h-5 text-trust-600" /><h1 className="text-3xl font-bold text-slate-900">Watchlist</h1></div>
+      <p className="text-slate-600 mb-6">Tokens are re-scanned every 3 minutes. Alerts fire on risk level changes.</p>
       <div className="flex gap-2 mb-6">
         <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Token mint address"
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-3 terminal-text text-sm outline-none focus:border-teal-500/60" />
+          className="flex-1 bg-white border border-slate-200 rounded-md px-4 py-3 terminal-text text-sm outline-none focus:border-trust-500" />
         <button onClick={add} disabled={adding || !isValidSol(addr)}
-          className="px-5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2">
+          className="px-5 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2">
           {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} ADD
         </button>
       </div>
       {error && <div className="text-rose-400 text-sm mb-4">⚠ {error}</div>}
       {items.length === 0 ? (
-        <div className="p-10 text-center rounded-xl border border-zinc-800 bg-zinc-900/30 text-zinc-500">No tokens in watchlist. Add a Solana mint above.</div>
+        <div className="p-10 text-center rounded-xl border border-slate-200 bg-white text-slate-500">No tokens in watchlist. Add a Solana mint above.</div>
       ) : (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           {items.map((it, i) => {
             const lvl = it.state?.riskLevel || "PENDING"; const c = levelColor(lvl);
             return (
-              <div key={it.tokenAddress} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-zinc-800" : ""}`}>
+              <div key={it.tokenAddress} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-slate-200" : ""}`}>
                 <div className="flex items-center gap-3 min-w-0">
-                  {it.state?.metadata?.image ? <img src={it.state.metadata.image} className="w-9 h-9 rounded-md border border-zinc-800 object-cover" onError={(e) => e.target.style.display = "none"} /> : <Shield className="w-9 h-9 text-zinc-700 p-1.5 rounded-md border border-zinc-800" />}
+                  {it.state?.metadata?.image ? <img src={it.state.metadata.image} className="w-9 h-9 rounded-md border border-slate-200 object-cover" onError={(e) => e.target.style.display = "none"} /> : <Shield className="w-9 h-9 text-slate-400 p-1.5 rounded-md border border-slate-200" />}
                   <div>
-                    <div className="font-bold text-sm">{it.state?.metadata?.name || truncate(it.tokenAddress)} <span className="text-zinc-500">{it.state?.metadata?.symbol ? `$${it.state.metadata.symbol}` : ""}</span></div>
-                    <div className="text-xs terminal-text text-zinc-600">{truncate(it.tokenAddress, 8)}</div>
+                    <div className="font-bold text-sm">{it.state?.metadata?.name || truncate(it.tokenAddress)} <span className="text-slate-500">{it.state?.metadata?.symbol ? `$${it.state.metadata.symbol}` : ""}</span></div>
+                    <div className="text-xs terminal-text text-slate-500">{truncate(it.tokenAddress, 8)}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {it.state?.riskLevel ? <div className={`px-2.5 py-1 rounded bg-zinc-900 border ${c.border} ${c.text} text-xs terminal-text`}>{lvl} · {it.state.riskScore}</div> : <div className="px-2.5 py-1 rounded border border-zinc-800 text-zinc-500 text-xs">SCANNING…</div>}
-                  <button onClick={() => setView(`agent:token-audit`)} className="p-2 text-zinc-500 hover:text-teal-400" title="Re-audit"><Search className="w-3.5 h-3.5" /></button>
-                  <button onClick={() => remove(it.tokenAddress)} className="p-2 text-zinc-500 hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                  {it.state?.riskLevel ? <div className={`px-2.5 py-1 rounded bg-slate-900 border ${c.border} ${c.text} text-xs terminal-text`}>{lvl} · {it.state.riskScore}</div> : <div className="px-2.5 py-1 rounded border border-slate-200 text-slate-500 text-xs">SCANNING…</div>}
+                  <button onClick={() => setView(`agent:token-audit`)} className="p-2 text-slate-500 hover:text-trust-600" title="Re-audit"><Search className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => remove(it.tokenAddress)} className="p-2 text-slate-500 hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
             );
@@ -794,33 +1291,33 @@ function Dashboard({ user, setView, overallStats }) {
   }, [reports]);
   return (
     <div className="max-w-6xl mx-auto px-5 py-10">
-      <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
-      <p className="text-zinc-400 mb-8 terminal-text text-xs">{user.walletAddress}</p>
+      <h1 className="text-3xl font-bold mb-1 text-slate-900">Dashboard</h1>
+      <p className="text-slate-600 mb-8 terminal-text text-xs">{user.walletAddress}</p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Credits" value={user.credits} color="text-teal-400" sub="Free tier (no farming)" />
+        <StatCard label="Credits" value={user.credits} color="text-trust-600" sub="Free tier (no farming)" />
         <StatCard label="Plan" value={user.plan} color="text-emerald-400" sub={user.subscription ? `${user.subscription.remaining} left` : "—"} />
         <StatCard label="Your Reports" value={reports.length} color="text-amber-400" />
         <StatCard label="Threats Found" value={reports.filter((r) => ["HIGH", "CRITICAL"].includes(r.result?.riskLevel)).length} color="text-rose-400" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl bg-zinc-900/40 border border-zinc-800 p-5">
+        <div className="lg:col-span-2 rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="terminal-text tracking-widest text-sm text-zinc-400">RECENT REPORTS</h3>
-            <button onClick={() => setView("explorer")} className="text-xs terminal-text text-teal-400">RUN AGENT →</button>
+            <h3 className="terminal-text tracking-widest text-sm text-slate-600">RECENT REPORTS</h3>
+            <button onClick={() => setView("explorer")} className="text-xs terminal-text text-trust-600">RUN AGENT →</button>
           </div>
-          {reports.length === 0 ? <div className="text-center py-8 text-zinc-500 text-sm">No reports yet. <button onClick={() => setView("explorer")} className="text-teal-400">Browse agents →</button></div> : (
+          {reports.length === 0 ? <div className="text-center py-8 text-slate-500 text-sm">No reports yet. <button onClick={() => setView("explorer")} className="text-trust-600">Browse agents →</button></div> : (
             <div className="space-y-1">
               {reports.slice(0, 10).map((r) => {
                 const c = levelColor(r.result?.riskLevel);
                 return (
-                  <button key={r.id} onClick={() => setView(`report:${r.id}`)} className="w-full text-left p-3 rounded hover:bg-zinc-900 transition flex items-center justify-between">
+                  <button key={r.id} onClick={() => setView(`report:${r.id}`)} className="w-full text-left p-3 rounded hover:bg-slate-100 transition flex items-center justify-between">
                     <div className="min-w-0">
                       <div className="font-bold text-sm">{r.agentName}</div>
-                      <div className="text-xs text-zinc-500 truncate">{Object.values(r.inputs || {}).join(" · ")}</div>
+                      <div className="text-xs text-slate-500 truncate">{Object.values(r.inputs || {}).join(" · ")}</div>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="text-xs text-zinc-600 hidden sm:block">{new Date(r.createdAt).toLocaleString()}</div>
+                      <div className="text-xs text-slate-500 hidden sm:block">{new Date(r.createdAt).toLocaleString()}</div>
                       <RiskBadge level={r.result?.riskLevel || "LOW"} />
                     </div>
                   </button>
@@ -829,12 +1326,12 @@ function Dashboard({ user, setView, overallStats }) {
             </div>
           )}
         </div>
-        <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800 p-5">
-          <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-4">FAVORITE AGENTS</h3>
-          {byAgent.length === 0 ? <div className="text-xs text-zinc-500">Use agents to populate this.</div> : byAgent.map(([id, n]) => (
-            <button key={id} onClick={() => setView(`agent:${id}`)} className="w-full text-left p-2 rounded hover:bg-zinc-900 flex items-center justify-between text-sm">
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-5">
+          <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">FAVORITE AGENTS</h3>
+          {byAgent.length === 0 ? <div className="text-xs text-slate-500">Use agents to populate this.</div> : byAgent.map(([id, n]) => (
+            <button key={id} onClick={() => setView(`agent:${id}`)} className="w-full text-left p-2 rounded hover:bg-slate-100 flex items-center justify-between text-sm">
               <span className="capitalize">{id.replace(/-/g, " ")}</span>
-              <span className="terminal-text text-teal-400">{n}×</span>
+              <span className="terminal-text text-trust-600">{n}×</span>
             </button>
           ))}
         </div>
@@ -874,50 +1371,50 @@ function ApiPage() {
   return (
     <div className="max-w-5xl mx-auto px-5 py-10">
       <div className="flex items-center gap-2 mb-2">
-        <Code2 className="w-5 h-5 text-teal-400" />
-        <h1 className="text-3xl font-bold">REST API</h1>
-        <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-teal-300 terminal-text">v0.1.0</span>
+        <Code2 className="w-5 h-5 text-trust-600" />
+        <h1 className="text-3xl font-bold text-slate-900">REST API</h1>
+        <span className="text-[10px] px-2 py-0.5 rounded bg-trust-100 border border-trust-300 text-trust-700 terminal-text">v0.1.0</span>
       </div>
-      <p className="text-zinc-400 mb-6">Programmatic access to every SolGuard agent. Authenticate with an API key (subscription-backed) or JWT.</p>
+      <p className="text-slate-600 mb-6">Programmatic access to every SolGuard agent. Authenticate with an API key (subscription-backed) or JWT.</p>
 
-      <div className="flex gap-1 mb-6 border-b border-zinc-800">
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
         {[["overview", "Overview"], ["endpoints", "Endpoints"], ["sdks", "SDKs"], ["keys", "Your Keys"]].map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-xs terminal-text tracking-widest transition border-b-2 ${tab === k ? "border-teal-400 text-teal-300" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}>{l.toUpperCase()}</button>
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-xs terminal-text tracking-widest transition border-b-2 ${tab === k ? "border-trust-500 text-trust-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l.toUpperCase()}</button>
         ))}
       </div>
 
       {tab === "overview" && (
         <div className="space-y-5">
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Base URL</h3>
-            <pre className="text-sm terminal-text text-teal-300 bg-zinc-950 p-3 rounded border border-zinc-800">https://solguard.ai/api</pre>
+            <pre className="text-sm terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800">https://solguard.ai/api</pre>
           </div>
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Authentication</h3>
-            <p className="text-sm text-zinc-400 mb-3">Two methods. API keys are recommended for server-side use.</p>
-            <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`# Via API key (recommended for backends — subscription-backed)
+            <p className="text-sm text-slate-600 mb-3">Two methods. API keys are recommended for server-side use.</p>
+            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`# Via API key (recommended for backends — subscription-backed)
 X-API-Key: sg_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # Via JWT (browser / wallet-auth users)
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
           </div>
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Payment Methods (when running an agent)</h3>
             <ul className="space-y-1.5 text-sm">
-              <li><code className="text-teal-300">credit</code> · use one of your 2 non-renewable free credits</li>
-              <li><code className="text-teal-300">subscription</code> · debit your active plan's quota (Starter 100 / Pro 1000 / Business unlimited)</li>
-              <li><code className="text-teal-300">usdc</code> · provide <code>paymentSignature</code> of a confirmed 0.10 USDC transfer to our verification wallet</li>
+              <li><code className="text-trust-700">credit</code> · use one of your 2 non-renewable free credits</li>
+              <li><code className="text-trust-700">subscription</code> · debit your active plan's quota (Starter 100 / Pro 1000 / Business unlimited)</li>
+              <li><code className="text-trust-700">usdc</code> · provide <code>paymentSignature</code> of a confirmed 0.10 USDC transfer to our verification wallet</li>
             </ul>
           </div>
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Rate Limits</h3>
             <ul className="space-y-1.5 text-sm">
-              <li>Per agent per user: <code className="text-teal-300">10 req/min</code> (free) · <code className="text-teal-300">60 req/min</code> (subscribers)</li>
-              <li>Global per user: <code className="text-teal-300">60 req/min</code> (free) · <code className="text-teal-300">300 req/min</code> (subscribers)</li>
-              <li>Public reads per IP: <code className="text-teal-300">120 req/min</code></li>
-              <li>Auth endpoints per IP: <code className="text-teal-300">20 req/min</code></li>
+              <li>Per agent per user: <code className="text-trust-700">10 req/min</code> (free) · <code className="text-trust-700">60 req/min</code> (subscribers)</li>
+              <li>Global per user: <code className="text-trust-700">60 req/min</code> (free) · <code className="text-trust-700">300 req/min</code> (subscribers)</li>
+              <li>Public reads per IP: <code className="text-trust-700">120 req/min</code></li>
+              <li>Auth endpoints per IP: <code className="text-trust-700">20 req/min</code></li>
             </ul>
-            <p className="text-xs text-zinc-500 mt-3">Exceeding limits returns <code>429</code> with a retry-after seconds hint in the body.</p>
+            <p className="text-xs text-slate-500 mt-3">Exceeding limits returns <code>429</code> with a retry-after seconds hint in the body.</p>
           </div>
         </div>
       )}
@@ -925,17 +1422,17 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
       {tab === "endpoints" && (
         <div className="space-y-2">
           {endpoints.map((e, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800">
-              <span className={`text-[10px] terminal-text font-bold w-14 text-center py-1 rounded ${e.method === "GET" ? "bg-emerald-500/15 text-emerald-300" : e.method === "POST" ? "bg-teal-500/15 text-teal-300" : "bg-rose-500/15 text-rose-300"}`}>{e.method}</span>
-              <code className="terminal-text text-sm text-zinc-200 flex-1">{e.path}</code>
-              {e.auth && <span className="text-[10px] terminal-text text-amber-300">AUTH</span>}
-              <span className="text-xs text-zinc-500 hidden md:inline">{e.desc}</span>
+            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200">
+              <span className={`text-[10px] terminal-text font-bold w-14 text-center py-1 rounded ${e.method === "GET" ? "bg-emerald-50 text-emerald-700" : e.method === "POST" ? "bg-trust-50 text-trust-700" : "bg-rose-50 text-rose-700"}`}>{e.method}</span>
+              <code className="terminal-text text-sm text-slate-700 flex-1">{e.path}</code>
+              {e.auth && <span className="text-[10px] terminal-text text-amber-600">AUTH</span>}
+              <span className="text-xs text-slate-500 hidden md:inline">{e.desc}</span>
             </div>
           ))}
 
-          <div className="mt-6 p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="mt-6 p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Example: Run Token Audit</h3>
-            <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`curl -X POST https://solguard.ai/api/agents/token-audit/run \\
+            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`curl -X POST https://solguard.ai/api/agents/token-audit/run \\
   -H "X-API-Key: sg_live_xxxxx" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -944,9 +1441,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
   }'`}</pre>
           </div>
 
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Sample Response</h3>
-            <pre className="text-xs terminal-text text-zinc-400 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`{
+            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`{
   "reportId": "uuid…",
   "agentId": "token-audit",
   "agentName": "Token Audit",
@@ -965,12 +1462,12 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
       {tab === "sdks" && (
         <div className="space-y-5">
           <div className="grid sm:grid-cols-2 gap-4">
-            <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <div className="p-5 rounded-xl border border-slate-200 bg-white">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold flex items-center gap-2"><span className="text-amber-400">●</span> JavaScript SDK</h3>
-                <a href="/sdk/solguard.js" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
+                <a href="/sdk/solguard.js" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
               </div>
-              <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`import { SolGuard } from "./solguard.js";
+              <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`import { SolGuard } from "./solguard.js";
 
 const sg = new SolGuard({ apiKey: "sg_live_…" });
 const r = await sg.runAgent("token-audit", {
@@ -978,12 +1475,12 @@ const r = await sg.runAgent("token-audit", {
 }, { paymentMethod: "subscription" });
 console.log(r.summary, r.riskScore);`}</pre>
             </div>
-            <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
+            <div className="p-5 rounded-xl border border-slate-200 bg-white">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold flex items-center gap-2"><span className="text-emerald-400">●</span> Python SDK</h3>
-                <a href="/sdk/solguard.py" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
+                <a href="/sdk/solguard.py" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
               </div>
-              <pre className="text-xs terminal-text text-zinc-300 bg-zinc-950 p-3 rounded border border-zinc-800 overflow-auto">{`from solguard import SolGuard
+              <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`from solguard import SolGuard
 
 sg = SolGuard(api_key="sg_live_…")
 r = sg.run_agent(
@@ -1002,29 +1499,29 @@ print(r["summary"], r["riskScore"])`}</pre>
 
       {tab === "keys" && (
         <div className="space-y-5">
-          <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/30">
-            <h3 className="terminal-text tracking-widest text-sm text-zinc-400 mb-3">CREATE API KEY</h3>
+          <div className="p-5 rounded-xl border border-slate-200 bg-white">
+            <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-3">CREATE API KEY</h3>
             <div className="flex gap-2">
-              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. Production bot)" className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-4 py-2.5 text-sm outline-none focus:border-teal-500/60" />
-              <button onClick={create} disabled={creating} className="px-4 rounded-md bg-teal-500 text-black font-bold hover:bg-teal-400 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2"><Plus className="w-4 h-4" /> CREATE</button>
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. Production bot)" className="flex-1 bg-white border border-slate-200 rounded-md px-4 py-2.5 text-sm outline-none focus:border-trust-500" />
+              <button onClick={create} disabled={creating} className="px-4 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-40 terminal-text tracking-wider text-sm flex items-center gap-2"><Plus className="w-4 h-4" /> CREATE</button>
             </div>
             {newKey && (
               <div className="mt-4 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/30">
                 <div className="text-xs terminal-text text-emerald-300 mb-2">⚠ COPY NOW — WON'T BE SHOWN AGAIN</div>
-                <div className="font-mono text-sm bg-zinc-900 p-2 rounded break-all">{newKey}</div>
-                <button onClick={() => { navigator.clipboard.writeText(newKey); setNewKey(null); }} className="mt-2 text-xs text-teal-300">COPY & DISMISS</button>
+                <div className="font-mono text-sm bg-slate-900 text-slate-200 p-2 rounded break-all">{newKey}</div>
+                <button onClick={() => { navigator.clipboard.writeText(newKey); setNewKey(null); }} className="mt-2 text-xs text-trust-700">COPY & DISMISS</button>
               </div>
             )}
           </div>
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-            {keys.length === 0 ? <div className="p-8 text-center text-zinc-500">No keys yet.</div> : keys.map((k, i) => (
-              <div key={k.id} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-zinc-800" : ""} ${!k.isActive ? "opacity-50" : ""}`}>
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            {keys.length === 0 ? <div className="p-8 text-center text-slate-500">No keys yet.</div> : keys.map((k, i) => (
+              <div key={k.id} className={`p-4 flex items-center justify-between ${i > 0 ? "border-t border-slate-200" : ""} ${!k.isActive ? "opacity-50" : ""}`}>
                 <div>
                   <div className="font-bold">{k.label}</div>
-                  <div className="text-xs font-mono text-zinc-500 mt-1">{k.key}</div>
-                  <div className="text-xs text-zinc-600 mt-1">Used {k.usageCount}× · {new Date(k.createdAt).toLocaleDateString()}</div>
+                  <div className="text-xs font-mono text-slate-500 mt-1">{k.key}</div>
+                  <div className="text-xs text-slate-500 mt-1">Used {k.usageCount}× · {new Date(k.createdAt).toLocaleDateString()}</div>
                 </div>
-                {k.isActive ? <button onClick={() => revoke(k.id)} className="text-xs px-3 py-1.5 rounded-md border border-zinc-800 hover:border-rose-500/40 hover:text-rose-400 flex items-center gap-1.5"><Trash2 className="w-3 h-3" /> REVOKE</button> : <span className="text-xs text-zinc-500">REVOKED</span>}
+                {k.isActive ? <button onClick={() => revoke(k.id)} className="text-xs px-3 py-1.5 rounded-md border border-slate-200 hover:border-rose-500/40 hover:text-rose-400 flex items-center gap-1.5"><Trash2 className="w-3 h-3" /> REVOKE</button> : <span className="text-xs text-slate-500">REVOKED</span>}
               </div>
             ))}
           </div>
@@ -1105,7 +1602,7 @@ export default function App() {
   const [topView, params] = view.includes(":") ? view.split(":") : [view, null];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen grid-bg">
       <Header view={view} setView={setView} user={user} onConnect={connectWallet} onLogout={logout} connecting={connecting} walletError={walletError} />
 
       {topView === "home" && <Home agents={agents} setView={setView} overallStats={overallStats} exploits={exploits} />}
@@ -1113,7 +1610,7 @@ export default function App() {
       {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
       {topView === "report" && <ReportView report={report} setView={setView} />}
       {topView === "subscriptions" && <Subscriptions user={user} ensureWallet={connectWallet} onSubscribed={() => { refreshMe(); setView("dashboard"); }} />}
-      {topView === "guide" && <Guide />}
+      {topView === "guide" && <Guide setView={setView} />}
       {topView === "watchlist" && user && <Watchlist setView={setView} />}
       {topView === "dashboard" && user && <Dashboard user={user} setView={(v) => { if (v.startsWith("report:")) { (async () => { const r = await api(`/api/reports/${v.split(":")[1]}`); if (r.ok) setReport(r.data); setView(v); })(); } else setView(v); }} overallStats={overallStats} />}
       {topView === "api" && <ApiPage />}
@@ -1124,14 +1621,14 @@ export default function App() {
         {toasts.map((a) => {
           const c = levelColor(a.newLevel);
           return (
-            <div key={a.id} className={`pointer-events-auto p-4 rounded-xl border ${c.border} bg-zinc-950/95 backdrop-blur shadow-2xl ${c.glow} min-w-[300px]`}>
+            <div key={a.id} className={`pointer-events-auto p-4 rounded-xl border ${c.border} bg-white/95 backdrop-blur shadow-trust-md ${c.glow} min-w-[300px]`}>
               <div className="flex items-start gap-3">
                 <Bell className={`w-5 h-5 ${c.text} mt-0.5`} />
                 <div className="flex-1">
-                  <div className="terminal-text text-xs tracking-widest text-zinc-500">RISK LEVEL CHANGED</div>
+                  <div className="terminal-text text-xs tracking-widest text-slate-500">RISK LEVEL CHANGED</div>
                   <div className={`font-bold ${c.text} mt-1`}>{a.symbol || truncate(a.tokenAddress)}: {a.previousLevel} → {a.newLevel}</div>
                 </div>
-                <button onClick={() => setToasts((t) => t.filter((x) => x.id !== a.id))} className="text-zinc-500"><X className="w-4 h-4" /></button>
+                <button onClick={() => setToasts((t) => t.filter((x) => x.id !== a.id))} className="text-slate-500"><X className="w-4 h-4" /></button>
               </div>
             </div>
           );

@@ -18,6 +18,25 @@ module.exports = {
       },
       extend: {
         colors: {
+          trust: {
+            50: '#EFF6FF',
+            100: '#DBEAFE',
+            200: '#BFDBFE',
+            300: '#93C5FD',
+            400: '#60A5FA',
+            500: '#3B82F6',
+            600: '#2563EB',
+            700: '#1D4ED8',
+            800: '#1E40AF',
+            900: '#1E3A8A',
+            950: '#172554',
+          },
+          surface: {
+            DEFAULT: '#FAFAFA',
+            muted: '#F8FAFC',
+            card: '#FFFFFF',
+            border: '#E2E8F0',
+          },
           border: 'hsl(var(--border))',
           input: 'hsl(var(--input))',
           ring: 'hsl(var(--ring))',
@@ -74,22 +93,23 @@ module.exports = {
           md: 'calc(var(--radius) - 2px)',
           sm: 'calc(var(--radius) - 4px)'
         },
+        fontFamily: {
+          sans: ['var(--font-orbitron)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          brand: ['var(--font-orbitron)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        boxShadow: {
+          'trust-sm': '0 1px 3px rgba(37, 99, 235, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04)',
+          'trust-md': '0 4px 14px rgba(37, 99, 235, 0.12)',
+          'trust-glow': '0 0 24px rgba(37, 99, 235, 0.15)',
+        },
         keyframes: {
           'accordion-down': {
-            from: {
-              height: '0'
-            },
-            to: {
-              height: 'var(--radix-accordion-content-height)'
-            }
+            from: { height: '0' },
+            to: { height: 'var(--radix-accordion-content-height)' }
           },
           'accordion-up': {
-            from: {
-              height: 'var(--radix-accordion-content-height)'
-            },
-            to: {
-              height: '0'
-            }
+            from: { height: 'var(--radix-accordion-content-height)' },
+            to: { height: '0' }
           }
         },
         animation: {

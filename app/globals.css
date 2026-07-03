@@ -2,18 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: light;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 214 32% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 214 95% 93%;
+  --accent-foreground: 224 76% 48%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+}
 
-html, body { background: #09090b; color: #f4f4f5; }
+html, body {
+  background: #F8FAFC;
+  color: #1E293B;
+  font-family: var(--font-orbitron), ui-sans-serif, system-ui, sans-serif;
+}
 
-.neon-glow { box-shadow: 0 0 30px rgba(20,184,166,0.18); }
-.neon-border { border-color: #14b8a6; box-shadow: 0 0 14px rgba(20,184,166,0.35); }
-.terminal-text { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: 0.04em; }
+.neon-glow { box-shadow: 0 0 24px rgba(37, 99, 235, 0.14); }
+.neon-border { border-color: #2563EB; box-shadow: 0 0 12px rgba(37, 99, 235, 0.2); }
+.terminal-text { font-family: var(--font-orbitron), ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.06em; }
 
 .grid-bg {
+  background-color: #F8FAFC;
   background-image:
-    linear-gradient(rgba(20,184,166,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20,184,166,0.06) 1px, transparent 1px);
+    linear-gradient(rgba(37, 99, 235, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
@@ -24,13 +46,13 @@ html, body { background: #09090b; color: #f4f4f5; }
 .scanline::after {
   content: "";
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, transparent, rgba(20,184,166,0.18), transparent);
-  animation: scanline 2.4s linear infinite;
+  background: linear-gradient(180deg, transparent, rgba(37, 99, 235, 0.06), transparent);
+  animation: scanline 3.2s linear infinite;
   pointer-events: none;
 }
 
 @keyframes blink { 50% { opacity: 0; } }
-.cursor-blink::after { content: "▍"; animation: blink 1s steps(1) infinite; color: #14b8a6; margin-left: 4px; }
+.cursor-blink::after { content: "▍"; animation: blink 1s steps(1) infinite; color: #2563EB; margin-left: 4px; }
 
 @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }

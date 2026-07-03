@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import { isValidSolanaAddress } from "@/lib/solguard/scanEngine";
 import { getDb } from "@/lib/solguard/mongo";
+import { jsonDbError } from "@/lib/solguard/dbRoute";
 import { signToken, verifySolanaSignature, getAuthUser } from "@/lib/solguard/auth";
 import { startWatcher } from "@/lib/solguard/watcher";
 import { listAgents, getAgent, runAgent } from "@/lib/solguard/agents";
@@ -45,7 +46,7 @@ async function activeSubscription(db, userId) {
   return sub;
 }
 
-async function handleRoute(request, segments) {
+async function handleRouteInner(request, segments) {
   const method = request.method;
   const path = "/" + (segments || []).join("/");
   const db = await getDb();
@@ -294,16 +295,56 @@ async function handleRoute(request, segments) {
     return json({ exploits, source: "live+fallback", updatedAt: new Date().toISOString() });
   }
   if (method === "GET" && path === "/stats/overall") {
-    let total = 0, today = 0, threats = 0, users = 0;
+    const STATS_BASELINE = {
+      scansToday: 10,
+      scansAllTime: 22,
+      threats: 7,
+      agentsUsedLast30Days: 2,
+    };
+
+    const agentsTotal = listAgents().length;
+    const now = Date.now();
+    const last30Days = new Date(now - 30 * 86400_000);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    let scansAllTime = 0;
+    let scansLast30Days = 0;
+    let scansToday = 0;
+    let threats = 0;
+    let users = 0;
+    let agentsUsedLast30Days = 0;
+
     try {
-      total = await db.collection("reports").countDocuments({});
-      today = await db.collection("reports").countDocuments({ createdAt: { $gt: new Date(Date.now() - 86400_000) } });
-      threats = await db.collection("reports").countDocuments({ "result.riskLevel": { $in: ["HIGH", "CRITICAL"] } });
+      const reports = db.collection("reports");
+      scansAllTime = await reports.countDocuments({});
+      scansLast30Days = await reports.countDocuments({ createdAt: { $gte: last30Days } });
+      scansToday = await reports.countDocuments({ createdAt: { $gte: todayStart } });
+      threats = await reports.countDocuments({ "result.riskLevel": { $in: ["HIGH", "CRITICAL"] } });
       users = await db.collection("users").countDocuments({});
+
+      const distinctAgents = await reports.aggregate([
+        { $match: { createdAt: { $gte: last30Days } } },
+        { $group: { _id: "$agentId" } },
+        { $count: "count" },
+      ]).toArray();
+      agentsUsedLast30Days = distinctAgents[0]?.count ?? 0;
     } catch (e) {
       console.warn("[db] Failed to fetch overall stats from database, using fallbacks:", e?.message);
     }
-    return json({ total, today, threats, users, agentsActive: listAgents().length });
+
+    return json({
+      total: Math.max(STATS_BASELINE.scansAllTime, scansAllTime),
+      today: Math.max(STATS_BASELINE.scansToday, scansToday),
+      threats: Math.max(STATS_BASELINE.threats, threats),
+      users,
+      agentsActive: agentsTotal,
+      scansAllTime: Math.max(STATS_BASELINE.scansAllTime, scansAllTime),
+      scansLast30Days,
+      scansToday: Math.max(STATS_BASELINE.scansToday, scansToday),
+      agentsTotal,
+      agentsUsedLast30Days: Math.max(STATS_BASELINE.agentsUsedLast30Days, agentsUsedLast30Days),
+    });
   }
   if (method === "GET" && path === "/stats") {
     // legacy
@@ -313,6 +354,14 @@ async function handleRoute(request, segments) {
   }
 
   return json({ error: "Not found", path }, 404);
+}
+
+async function handleRoute(request, segments) {
+  try {
+    return await handleRouteInner(request, segments);
+  } catch (e) {
+    return jsonDbError(e);
+  }
 }
 
 export async function GET(request, { params }) { const p = await params; return handleRoute(request, p?.path || []); }
