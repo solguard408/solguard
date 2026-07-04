@@ -79,6 +79,11 @@ agenthub/agents/youtube/db
 
 memory/test_credentials.md
 
+# Agent/QA ephemeral artifacts
+test_result.md
+scripts/*-output.json
+scripts/qa-report-output.json
+
 # Mobile development
 android-sdk/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
 node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import BrandLogo from "./components/BrandLogo";
+import ServiceCard from "./components/ServiceCard";
 import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem } from "./components/X402ComingSoon";
 import bs58 from "bs58";
 import {
@@ -9,16 +10,31 @@ import {
   ArrowRight, Sparkles, Copy, ExternalLink, Loader2, Layers, Droplets, Wallet, LogOut, Bell,
   Star, Trash2, Key, Plus, Twitter, Download, Coins, Users, FileText, TrendingUp, Activity,
   Globe, MessageSquare, UserCog, ChevronRight, Filter, Zap, Book, Code2, CreditCard, BarChart3,
-  CircleDollarSign, Flame, Clock, X, Send,
+  CircleDollarSign, Flame, Clock, X, Send, Bot, Fingerprint, KeyRound,
 } from "lucide-react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferCheckedInstruction, createAssociatedTokenAccountInstruction, getAccount } from "@solana/spl-token";
 
 // --- icon map (server returns icon name as string)
-const ICONS = { Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp, Activity, Globe, Wallet, UserCog, Shield, MessageSquare };
+const ICONS = { Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp, Activity, Globe, Wallet, UserCog, Shield, MessageSquare, Bot, Fingerprint, KeyRound };
 
 const isValidSol = (a) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a || "");
 const truncate = (a, n = 6) => !a ? "" : (a.length <= n * 2 + 3 ? a : `${a.slice(0, n)}…${a.slice(-n)}`);
+
+/** Map legacy exploit agent IDs to marketplace primary agents */
+function resolvePrimaryAgent(agentId) {
+  const map = {
+    "wallet-audit": "wallet-verification",
+    "developer-wallet-analysis": "wallet-verification",
+    "bundle-detection": "solana-token-verification",
+    "holder-distribution": "solana-token-verification",
+    "liquidity-verification": "solana-token-verification",
+    "liquidity-lock-analysis": "solana-token-verification",
+    "token-audit": "solana-token-verification",
+    "volume-authenticity": "solana-token-verification",
+  };
+  return map[agentId] || agentId;
+}
 
 function levelColor(level) {
   switch (level) {
@@ -180,7 +196,7 @@ const PIPELINE_STEPS = [
     num: "02",
     label: "SELECT AGENT",
     title: "Scoped security modules",
-    description: "Pick from 16 specialized agents — Token Audit, Contract Security, Bundle Detection, Holder Distribution, Liquidity Depth, Website Scan, AI Consultant — each with defined inputs and scope.",
+    description: "Pick from five consolidated services — Token Verification, Contract Audit, Wallet Verification, dApp Scan, and AI Consultant — powered by 16+ on-chain analysis engines.",
     Icon: Layers,
   },
   {
@@ -468,8 +484,6 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
     { id: "guide", label: "Guide" },
     { id: "watchlist", label: "Watchlist", auth: true },
     { id: "api", label: "API" },
-    { id: "dashboard", label: "Dashboard", auth: true },
-    { id: "exploits", label: "Exploit Watch" },
   ];
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/60 backdrop-blur bg-white/90">
@@ -491,8 +505,12 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
               <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md bg-trust-50 border border-trust-200 text-xs terminal-text text-slate-700">
                 <span className="text-emerald-400">●</span>
                 <span className="text-slate-700">{truncate(user.walletAddress)}</span>
-                <span className="text-slate-400">·</span>
-                <span className="text-trust-600">{user.credits} cr</span>
+                {user.credits > 0 && (
+                  <>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-trust-600">{user.credits} cr</span>
+                  </>
+                )}
                 {user.subscription && <><span className="text-slate-400">·</span><span className="text-amber-300">{user.subscription.plan}</span></>}
               </div>
               <button onClick={onLogout} className="p-2 rounded-md bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-600"><LogOut className="w-3.5 h-3.5" /></button>
@@ -519,7 +537,7 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
 }
 
 // ===================== HOME =====================
-function Home({ agents, setView, overallStats, exploits }) {
+function Home({ services, serviceStats, setView, overallStats, exploits }) {
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute -top-32 -left-32 w-[480px] h-[480px] rounded-full bg-trust-100 blur-[120px]" />
@@ -540,14 +558,14 @@ function Home({ agents, setView, overallStats, exploits }) {
               Ask <span className="text-trust-600">SolGuard.</span> Get a real answer in seconds, not hours.
             </p>
             <p className="mt-5 text-slate-600 max-w-lg text-base sm:text-lg leading-relaxed">
-              SolGuard isn&apos;t one scanner. It&apos;s a marketplace of 16+ specialized AI security agents. Pick the exact analysis you need. Pay only $0.10 USDC per run — or subscribe.
+              SolGuard isn&apos;t one scanner. It&apos;s 5 comprehensive security services powered by 16+ analysis engines. Pick the exact verification you need. Pay only $0.10 USDC per run — or subscribe.
             </p>
             <div className="mt-8 w-full sm:max-w-md flex flex-col gap-3">
               <button
                 onClick={() => setView("explorer")}
                 className="w-full px-7 py-3.5 rounded-lg bg-trust-600 text-white font-bold hover:bg-trust-500 transition terminal-text tracking-wider neon-glow flex items-center justify-center gap-2"
               >
-                EXPLORE SECURITY AGENTS <ArrowRight className="w-4 h-4" />
+                EXPLORE SECURITY SERVICES <ArrowRight className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setView("subscriptions")}
@@ -609,21 +627,28 @@ function Home({ agents, setView, overallStats, exploits }) {
         </div>
       </section>
 
-      <HowItWorksSection agentCount={agents.length} />
+      <HowItWorksSection agentCount={services?.length || 5} />
 
       <WhatsNextSection />
 
-      {/* Agents Marketplace preview */}
+      {/* Security Services preview */}
       <section className="relative max-w-7xl mx-auto px-5 pb-16">
         <div className="flex items-end justify-between mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Featured Agents</h2>
-            <p className="text-slate-500 text-sm mt-1">Specialized AI security services — pick what you need.</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Security Services</h2>
+            <p className="text-slate-500 text-sm mt-1">Five professional verification tiers — token, contract, wallet, web, and advisory.</p>
           </div>
           <button onClick={() => setView("explorer")} className="text-xs terminal-text text-trust-600 hover:text-trust-700 tracking-widest flex items-center gap-1">VIEW ALL → </button>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.slice(0, 6).map((a) => <AgentCard key={a.id} agent={a} onOpen={() => setView(`agent:${a.id}`)} />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(services || []).map((s) => (
+            <ServiceCard
+              key={s.id}
+              service={s}
+              stats={serviceStats?.[s.id]}
+              onOpen={() => { window.location.href = `/services/${s.id}`; }}
+            />
+          ))}
         </div>
       </section>
 
@@ -684,22 +709,24 @@ function AgentCard({ agent, onOpen }) {
 }
 
 // ===================== EXPLORER =====================
-function Explorer({ agents, setView }) {
+function Explorer({ services, serviceStats, setView }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("ALL");
-  const cats = ["ALL", ...Array.from(new Set(agents.map((a) => a.category)))];
-  const filtered = agents.filter((a) => (cat === "ALL" || a.category === cat) && (!q || a.name.toLowerCase().includes(q.toLowerCase()) || a.description.toLowerCase().includes(q.toLowerCase())));
+  const cats = ["ALL", ...Array.from(new Set((services || []).map((s) => s.category)))];
+  const filtered = (services || []).filter(
+    (s) => (cat === "ALL" || s.category === cat) && (!q || s.name.toLowerCase().includes(q.toLowerCase()) || s.description.toLowerCase().includes(q.toLowerCase()))
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-5 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Agent Marketplace</h1>
-        <p className="text-slate-500 mt-2">Specialized AI security agents — pick the exact analysis you need.</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900">Security Services</h1>
+        <p className="text-slate-500 mt-2">Five consolidated verification services for Solana asset protection — token, contract, wallet, web, and advisory.</p>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="flex-1 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search agents…"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search services…"
             className="w-full bg-white border border-slate-200 rounded-md pl-9 pr-4 py-3 text-sm outline-none focus:border-trust-500" />
         </div>
         <div className="flex gap-1 overflow-x-auto">
@@ -711,16 +738,23 @@ function Explorer({ agents, setView }) {
           ))}
         </div>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((a) => <AgentCard key={a.id} agent={a} onOpen={() => setView(`agent:${a.id}`)} />)}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filtered.map((s) => (
+          <ServiceCard
+            key={s.id}
+            service={s}
+            stats={serviceStats?.[s.id]}
+            onOpen={() => { window.location.href = `/services/${s.id}`; }}
+          />
+        ))}
       </div>
-      {filtered.length === 0 && <div className="text-center py-12 text-slate-500">No agents match.</div>}
+      {filtered.length === 0 && <div className="text-center py-12 text-slate-500">No services match.</div>}
     </div>
   );
 }
 
 // ===================== AGENT DETAIL & RUNNER =====================
-function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
+function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingModeFreeRuns = false }) {
   const [agent, setAgent] = useState(null);
   const [inputs, setInputs] = useState({});
   const [error, setError] = useState("");
@@ -741,10 +775,31 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
   const Icon = ICONS[agent.icon] || Shield;
   const allFilled = agent.inputs.every((i) => inputs[i.key] && inputs[i.key].trim().length > 0);
 
-  function start() { setError(""); if (!user) { ensureWallet(); return; } setPayOpen(true); }
+  async function executeRun(paymentMethod, paymentSignature = null) {
+    setBusy(true); setError("");
+    try {
+      const r = await api(`/api/agents/${agent.id}/run`, {
+        method: "POST",
+        body: JSON.stringify({ inputs, paymentMethod, paymentSignature }),
+      });
+      if (!r.ok) throw new Error(r.data?.error || "Run failed");
+      setPayOpen(false);
+      onReport(r.data);
+    } catch (e) {
+      setError(e.message || "Run failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function start() {
+    setError("");
+    if (!user) { ensureWallet(); return; }
+    if (testingModeFreeRuns) executeRun("testing");
+    else setPayOpen(true);
+  }
 
   async function confirmPayment(choice) {
-    setBusy(true); setError("");
     try {
       let paymentSignature = null;
       if (choice === "usdc") {
@@ -753,13 +808,9 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
         if (!provider.isConnected) await provider.connect();
         paymentSignature = await sendUsdcPayment({ amountUsdc: agent.price, walletProvider: provider });
       }
-      const r = await api(`/api/agents/${agent.id}/run`, { method: "POST", body: JSON.stringify({ inputs, paymentMethod: choice, paymentSignature }) });
-      if (!r.ok) throw new Error(r.data?.error || "Run failed");
-      setPayOpen(false);
-      onReport(r.data);
+      await executeRun(choice, paymentSignature);
     } catch (e) {
-      setError(e?.message || "Payment failed");
-    } finally {
+      setError(e.message || "Payment failed");
       setBusy(false);
     }
   }
@@ -781,6 +832,13 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
               </div>
             </div>
             {agent.longDescription && <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-200 pt-4">{agent.longDescription}</p>}
+            {agent.id === "solana-token-verification" && (
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+                {["Bundle Detection", "Holder Distribution", "Liquidity Depth", "Mint Authority", "AI Summary"].map((m) => (
+                  <span key={m} className="text-[10px] px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-600">{m}</span>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 mt-4">
               {agent.supportedChains.map((c) => (
                 <span key={c} className="text-xs terminal-text px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700 flex items-center gap-1.5">
@@ -823,7 +881,7 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
             {error && <div className="text-sm text-rose-400 mb-3">⚠ {error}</div>}
             <button onClick={start} disabled={!allFilled || busy}
               className="w-full px-6 py-3 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-40 transition terminal-text tracking-wider flex items-center justify-center gap-2">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {user ? "START ANALYSIS" : "CONNECT WALLET TO RUN"}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {user ? (testingModeFreeRuns ? "RUN ANALYSIS (FREE)" : "START ANALYSIS") : "CONNECT WALLET TO RUN"}
             </button>
           </div>
         </div>
@@ -831,8 +889,17 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
         <div className="space-y-4">
           <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-5">
             <div className="text-xs terminal-text tracking-widest text-slate-500 mb-2">PRICE</div>
-            <div className="text-4xl font-bold terminal-text">${agent.price.toFixed(2)}</div>
-            <div className="text-xs text-slate-500 mt-1">per analysis · USDC on Solana</div>
+            {testingModeFreeRuns ? (
+              <>
+                <div className="text-2xl font-bold terminal-text text-emerald-600">FREE</div>
+                <div className="text-xs text-slate-500 mt-1">testing mode — no payment required</div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl font-bold terminal-text">${agent.price.toFixed(2)}</div>
+                <div className="text-xs text-slate-500 mt-1">per analysis · USDC on Solana</div>
+              </>
+            )}
             <div className="mt-2"><X402InlineTag /></div>
             <div className="mt-4 pt-4 border-t border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-slate-500">Est. time</span><span className="terminal-text">{agent.estimatedTime}</span></div>
@@ -863,19 +930,100 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView }) {
 }
 
 // ===================== REPORT VIEW =====================
+function AiSummaryNotice({ available, reason }) {
+  if (available !== false) return null;
+  return (
+    <div className="mb-4 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900 leading-relaxed">
+      AI summary unavailable — showing on-chain data only.
+      {reason ? <span className="text-amber-700/80"> ({reason})</span> : null}
+    </div>
+  );
+}
+
+function ImpactBadge({ impact }) {
+  const t = (impact || "neutral").toLowerCase();
+  const cls = t === "unknown"
+    ? "bg-amber-50 text-amber-800 border-amber-200"
+    : t.includes("+") || (t.includes("risk") && !t.includes("-"))
+      ? "bg-rose-50 text-rose-700 border-rose-200"
+      : t.includes("-")
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : "bg-slate-100 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${cls}`}>{impact || "neutral"}</span>;
+}
+
+function ReportMetadata({ r }) {
+  const scanned = r.scannedAt ? new Date(r.scannedAt).toLocaleString() : null;
+  const sources = (r.dataSource || []).join(" · ");
+  if (!scanned && !r.confidence && !sources) return null;
+  return (
+    <div className="text-xs text-slate-500 mb-5 flex flex-wrap gap-x-4 gap-y-1">
+      {scanned && <span>Scanned: <span className="text-slate-600">{scanned}</span></span>}
+      {sources && <span>Sources: <span className="text-slate-600">{sources}</span></span>}
+      {r.confidence && <span>Confidence: <span className="text-slate-600">{r.confidence}</span></span>}
+    </div>
+  );
+}
+
+function KeyFindingsTable({ findings }) {
+  if (!findings?.length) return null;
+  return (
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5 overflow-x-auto">
+      <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">KEY FINDINGS</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs terminal-text text-slate-500 border-b border-slate-200">
+            <th className="pb-2 pr-4 font-normal">CHECK</th>
+            <th className="pb-2 pr-4 font-normal">VALUE</th>
+            <th className="pb-2 pr-4 font-normal">IMPACT</th>
+            <th className="pb-2 font-normal">WHAT IT MEANS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {findings.map((f, i) => (
+            <tr key={i} className="border-b border-slate-100 last:border-0 align-top">
+              <td className="py-3 pr-4 font-medium text-slate-800 whitespace-nowrap">{f.label}</td>
+              <td className="py-3 pr-4 terminal-text text-slate-700 whitespace-nowrap">{f.value}</td>
+              <td className="py-3 pr-4"><ImpactBadge impact={f.impact} /></td>
+              <td className="py-3 text-slate-600 leading-relaxed">{f.explanation}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ReportView({ report, setView }) {
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState("overview");
+  const [rawOpen, setRawOpen] = useState(false);
   if (!report) return <div className="text-center py-20 text-slate-500">No report.</div>;
   const r = report.result || report;
+  const verdict = r.verdict || r.summary || "";
   const c = levelColor(r.riskLevel);
+  const isComposite = report.agentId === "solana-token-verification";
+  const sub = r.rawEvidence?.subModules || r.evidence?.subModules;
+  const aiAvailable = r.ai_summary_available ?? r.rawEvidence?.ai_summary_available ?? r.evidence?.ai_summary_available;
+  const aiReason = r.ai_summary_reason ?? r.rawEvidence?.ai_summary_reason ?? r.evidence?.ai_summary_reason;
+  const rawData = r.rawEvidence ?? r.evidence ?? {};
 
   function copy() {
-    const txt = `🔍 SolGuard AI · ${report.agentName || report.agentId}\nRisk: ${r.riskLevel} (${r.riskScore}/100)\n\n${r.summary}\n\nsolguard.ai`;
+    const txt = `🔍 SolGuard AI · ${report.agentName || report.agentId}\nRisk: ${r.riskLevel} (${r.riskScore}/100)\n\n${verdict}\n\nsolguard.ai`;
     navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 1800);
   }
   function dl() {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `solguard-${report.reportId || report.id}.json`; a.click(); URL.revokeObjectURL(url);
+  }
+
+  function SubModulePanel({ title, children }) {
+    return (
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
+        <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">{title}</h3>
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -887,7 +1035,7 @@ function ReportView({ report, setView }) {
           <div className="flex-1">
             <div className="text-xs text-trust-600 terminal-text tracking-widest mb-2">AGENT REPORT</div>
             <h1 className="text-3xl font-bold mb-2 text-slate-900">{report.agentName || report.agentId}</h1>
-            <div className="text-sm text-slate-600 mb-3">Input: <span className="terminal-text text-slate-700">{Object.values(report.inputs || {}).join(", ")}</span></div>
+            <div className="text-sm text-slate-600 mb-3">Input: <span className="terminal-text text-slate-700">{r.input || Object.values(report.inputs || {}).join(", ")}</span></div>
             <div className="flex gap-2">
               <button onClick={copy} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}</button>
               <button onClick={dl} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Download className="w-3 h-3" /> JSON</button>
@@ -900,23 +1048,90 @@ function ReportView({ report, setView }) {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-br from-trust-50 to-white border border-trust-200 p-6 mb-5 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-trust-500" />
-        <div className="flex items-center gap-2 mb-3"><Sparkles className="w-4 h-4 text-trust-600" /><h3 className="terminal-text text-sm tracking-widest text-trust-700">SUMMARY</h3></div>
-        <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{r.summary}</p>
-      </div>
+      <ReportMetadata r={r} />
 
-      {r.recommendations?.length > 0 && (
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
-          <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">RECOMMENDATIONS</h3>
-          <ul className="space-y-2">{r.recommendations.map((x, i) => <li key={i} className="flex gap-3 p-3 rounded bg-slate-50 border border-slate-200 text-sm"><AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />{x}</li>)}</ul>
+      {isComposite && sub && (
+        <div className="flex gap-1 mb-5 border-b border-slate-200 overflow-x-auto">
+          {[["overview", "Overview"], ["bundle", "Bundle"], ["holders", "Holders"], ["liquidity", "Liquidity"]].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-xs terminal-text tracking-widest whitespace-nowrap border-b-2 transition ${tab === k ? "border-trust-500 text-trust-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l.toUpperCase()}</button>
+          ))}
         </div>
       )}
 
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
-        <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">EVIDENCE (RAW)</h3>
-        <pre className="text-xs terminal-text text-slate-200 overflow-auto max-h-96 p-3 bg-slate-900 rounded border border-slate-800">{JSON.stringify(r.evidence, null, 2)}</pre>
-      </div>
+      {(tab === "overview" || !isComposite) && (
+        <>
+          <div className="rounded-2xl bg-gradient-to-br from-trust-50 to-white border border-trust-200 p-6 mb-5 relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-trust-500" />
+            <div className="flex items-center gap-2 mb-3"><Sparkles className="w-4 h-4 text-trust-600" /><h3 className="terminal-text text-sm tracking-widest text-trust-700">VERDICT</h3></div>
+            <AiSummaryNotice available={aiAvailable} reason={aiReason} />
+            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{verdict}</p>
+          </div>
+
+          <KeyFindingsTable findings={r.keyFindings} />
+
+          {r.recommendations?.length > 0 && (
+            <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
+              <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">RECOMMENDATIONS</h3>
+              <ul className="space-y-2">{r.recommendations.map((x, i) => (
+                <li key={i} className="flex gap-3 p-3 rounded bg-slate-50 border border-slate-200 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-trust-600 flex-shrink-0 mt-0.5" />
+                  <span>{x}</span>
+                </li>
+              ))}</ul>
+            </div>
+          )}
+
+          {r.rawEvidence?.fullResponse && (
+            <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6 mb-5">
+              <h3 className="terminal-text tracking-widest text-sm text-slate-600 mb-4">FULL RESPONSE</h3>
+              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">{r.rawEvidence.fullResponse}</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {isComposite && tab === "bundle" && sub?.bundle && (
+        <SubModulePanel title="BUNDLE DETECTION">
+          <p className="text-sm text-slate-700 mb-4">{sub.bundle.detected ? `Coordinated activity: ${sub.bundle.walletCount} wallets clustered.` : "No bundle clustering detected."}</p>
+          <ul className="text-sm text-slate-600 space-y-1">
+            <li>Top 10 hold: {sub.bundle.top10Percent?.toFixed?.(1) ?? sub.bundle.top10Percent}%</li>
+            <li>Early slot clustering: {sub.bundle.earlySlotClustering ? "Yes" : "No"}</li>
+          </ul>
+        </SubModulePanel>
+      )}
+
+      {isComposite && tab === "holders" && sub?.holders && (
+        <SubModulePanel title="HOLDER DISTRIBUTION">
+          <ul className="text-sm text-slate-700 space-y-2">
+            <li>Top holder: {sub.holders.topHolderPercent?.toFixed?.(1) ?? sub.holders.topHolderPercent}% of supply</li>
+            <li>Top 10 wallets: {sub.holders.top10Percent?.toFixed?.(1) ?? sub.holders.top10Percent}% of supply</li>
+          </ul>
+        </SubModulePanel>
+      )}
+
+      {isComposite && tab === "liquidity" && sub?.liquidity && (
+        <SubModulePanel title="LIQUIDITY DEPTH">
+          <p className="text-sm text-slate-700 mb-2">{sub.liquidity.poolFound ? `Pool found — $${Math.round(sub.liquidity.liquidityUsd || 0).toLocaleString()} liquidity.` : "No active DEX pool detected."}</p>
+        </SubModulePanel>
+      )}
+
+      {(!isComposite || tab === "overview") && (
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-trust-sm p-6">
+          <button
+            type="button"
+            onClick={() => setRawOpen((o) => !o)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h3 className="terminal-text tracking-widest text-sm text-slate-600">ADVANCED / RAW DATA</h3>
+            <span className="text-xs text-slate-500">{rawOpen ? "Hide" : "Show"}</span>
+          </button>
+          {rawOpen && (
+            <pre className="mt-4 text-xs terminal-text text-slate-200 overflow-auto max-h-96 p-3 bg-slate-900 rounded border border-slate-800">
+              {JSON.stringify(isComposite && rawData.subModules ? { ...rawData, subModules: undefined } : rawData, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -967,7 +1182,7 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
                 {p.quota > 0 && <div className="text-xs text-slate-500 mt-1">≈ ${(p.priceUsdc / p.quota).toFixed(3)} per analysis</div>}
               </div>
               <ul className="space-y-2 mb-6 text-sm">
-                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Access to all 16 AI agents</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Access to all security services</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Real-time watchlist alerts</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Report history & exports</li>
                 {p.id !== "starter" && <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-trust-600" /> Priority RPC routing</li>}
@@ -987,7 +1202,7 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
         <ol className="space-y-2 text-sm text-slate-600 list-decimal pl-5">
           <li>Pay once in USDC on Solana — verified on-chain.</li>
           <li>Quota credited to your connected wallet for 30 days.</li>
-          <li>Run any of the 16 agents — quota decreases by 1 per analysis.</li>
+          <li>Run any security service — quota decreases by 1 per analysis.</li>
           <li>Subscription does not auto-renew. Top up anytime.</li>
         </ol>
       </div>
@@ -1041,7 +1256,7 @@ function GuideFieldRow({ name, desc }) {
 }
 
 function Guide({ setView }) {
-  const curlExample = `curl -i -X POST "https://solguard.ai/api/agents/token-audit/run" \\
+  const curlExample = `curl -i -X POST "https://solguard.ai/api/agents/solana-token-verification/run" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer <JWT>" \\
   -d '{"inputs":{"tokenAddress":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"},"paymentMethod":"usdc","paymentSignature":"<tx_signature>"}'`;
@@ -1049,11 +1264,15 @@ function Guide({ setView }) {
   const whatsHere = [
     {
       path: "/",
-      desc: "The explorer: search and browse every agent with its price, category, inputs, and supported chain.",
+      desc: "The explorer: browse five consolidated security services with pricing, categories, and live 30-day usage stats.",
+    },
+    {
+      path: "/api/services",
+      desc: "Marketplace service catalog (JSON) — five professional verification tiers with primary agent routing.",
     },
     {
       path: "/api/agents",
-      desc: "Machine-readable agent catalog (JSON) — id, price, inputs, features — for clients and the public SDK.",
+      desc: "Full agent catalog (JSON) — all analysis engines for SDK and programmatic access.",
     },
     {
       path: "/api/agents/[id]/run",
@@ -1073,7 +1292,7 @@ function Guide({ setView }) {
           Pay-per-use security scans over USDC · Solana mainnet
         </p>
         <p className="mt-6 text-slate-600 leading-relaxed">
-          Each SolGuard agent is a fixed-price analysis service — see each agent&apos;s listed price ($0.10 USDC).
+          Each SolGuard service is a fixed-price analysis tier — $0.10 USDC per scan ($0.06 with Pro, coming soon).
           Instead of passwords or email accounts, you authenticate with your wallet: sign a server nonce via{" "}
           <span className="terminal-text text-slate-800">nacl.sign.detached.verify()</span>, receive a JWT, and pay
           per run with an on-chain USDC transfer. Agents query Helius RPC for mint authority, slot clustering, holder
@@ -1218,7 +1437,7 @@ function ExploitWatch({ setView }) {
             <div className="md:col-span-2 terminal-text font-bold text-rose-400">${(e.lossUsd / 1_000_000).toFixed(2)}M</div>
             <div className="md:col-span-2 text-xs text-amber-300">{e.vector}</div>
             <div className="md:col-span-4 text-sm text-slate-600">{e.summary}</div>
-            <div className="md:col-span-1"><button onClick={() => setView(`agent:${e.relevantAgent}`)} className="text-xs text-trust-600 hover:text-trust-700 terminal-text">RUN →</button></div>
+            <div className="md:col-span-1"><button onClick={() => setView(`agent:${resolvePrimaryAgent(e.relevantAgent)}`)} className="text-xs text-trust-600 hover:text-trust-700 terminal-text">RUN →</button></div>
           </div>
         ))}
       </div>
@@ -1269,7 +1488,7 @@ function Watchlist({ setView }) {
                 </div>
                 <div className="flex items-center gap-3">
                   {it.state?.riskLevel ? <div className={`px-2.5 py-1 rounded bg-slate-900 border ${c.border} ${c.text} text-xs terminal-text`}>{lvl} · {it.state.riskScore}</div> : <div className="px-2.5 py-1 rounded border border-slate-200 text-slate-500 text-xs">SCANNING…</div>}
-                  <button onClick={() => setView(`agent:token-audit`)} className="p-2 text-slate-500 hover:text-trust-600" title="Re-audit"><Search className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setView(`agent:solana-token-verification`)} className="p-2 text-slate-500 hover:text-trust-600" title="Re-audit"><Search className="w-3.5 h-3.5" /></button>
                   <button onClick={() => remove(it.tokenAddress)} className="p-2 text-slate-500 hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
@@ -1350,7 +1569,9 @@ function ApiPage() {
   async function revoke(id) { await api(`/api/keys/${id}`, { method: "DELETE" }); load(); }
 
   const endpoints = [
-    { method: "GET", path: "/api/agents", desc: "List all 16 security agents.", auth: false },
+    { method: "GET", path: "/api/services", desc: "List five marketplace security services.", auth: false },
+    { method: "GET", path: "/api/stats/services", desc: "Per-service 30-day run counts and sparkline buckets.", auth: false },
+    { method: "GET", path: "/api/agents", desc: "List all analysis engines (18 agents).", auth: false },
     { method: "GET", path: "/api/agents/:id", desc: "Get one agent's metadata, inputs, features.", auth: false },
     { method: "POST", path: "/api/agents/:id/run", desc: "Execute an agent. Requires auth + a paymentMethod.", auth: true },
     { method: "GET", path: "/api/reports", desc: "List your recent reports.", auth: true },
@@ -1531,13 +1752,29 @@ print(r["summary"], r["riskScore"])`}</pre>
   );
 }
 
+// ===================== TESTING MODE BANNER =====================
+function TestingModeBanner() {
+  return (
+    <div
+      className="fixed bottom-4 left-4 z-50 pointer-events-none px-3 py-2 rounded-lg border border-amber-400/80 bg-amber-50/95 text-amber-900 text-[11px] font-semibold tracking-wide shadow-md backdrop-blur-sm"
+      role="status"
+      aria-live="polite"
+    >
+      TESTING MODE — Free Runs Enabled
+    </div>
+  );
+}
+
 // ===================== ROOT APP =====================
 export default function App() {
   const [view, setView] = useState("home");
   const [user, setUser] = useState(null);
   const [agents, setAgents] = useState([]);
+  const [services, setServices] = useState([]);
+  const [serviceStats, setServiceStats] = useState({});
   const [exploits, setExploits] = useState([]);
   const [overallStats, setOverallStats] = useState(null);
+  const [testingModeFreeRuns, setTestingModeFreeRuns] = useState(false);
   const [report, setReport] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [walletError, setWalletError] = useState("");
@@ -1545,10 +1782,24 @@ export default function App() {
   const sseRef = useRef(null);
 
   async function refreshAll() {
-    const [a, e, s] = await Promise.all([api("/api/agents"), api("/api/exploits"), api("/api/stats/overall")]);
+    const [a, svc, svcStats, e, s, cfg] = await Promise.all([
+      api("/api/agents"),
+      api("/api/services"),
+      api("/api/stats/services"),
+      api("/api/exploits"),
+      api("/api/stats/overall"),
+      api("/api/config"),
+    ]);
     if (a.ok) setAgents(a.data.agents);
+    if (svc.ok) setServices(svc.data.services || []);
+    if (svcStats.ok) {
+      const map = {};
+      for (const row of svcStats.data.services || []) map[row.serviceId] = row;
+      setServiceStats(map);
+    }
     if (e.ok) setExploits(e.data.exploits);
     if (s.ok) setOverallStats(s.data);
+    if (cfg.ok) setTestingModeFreeRuns(!!cfg.data.testingModeFreeRuns);
   }
   async function refreshMe() {
     const tok = typeof window !== "undefined" ? localStorage.getItem("sg_token") : null;
@@ -1557,6 +1808,26 @@ export default function App() {
     if (r.ok) setUser(r.data); else { localStorage.removeItem("sg_token"); setUser(null); }
   }
   useEffect(() => { refreshAll(); refreshMe(); }, []);
+
+  useEffect(() => {
+    const rid = typeof window !== "undefined" ? sessionStorage.getItem("sg_open_report") : null;
+    if (!rid) return;
+    sessionStorage.removeItem("sg_open_report");
+    (async () => {
+      const r = await api(`/api/reports/${rid}`);
+      if (r.ok) { setReport(r.data); setView(`report:${rid}`); }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const rid = typeof window !== "undefined" ? sessionStorage.getItem("sg_open_report") : null;
+    if (!rid) return;
+    sessionStorage.removeItem("sg_open_report");
+    (async () => {
+      const r = await api(`/api/reports/${rid}`);
+      if (r.ok) { setReport(r.data); setView(`report:${rid}`); }
+    })();
+  }, []);
 
   async function connectWallet() {
     setWalletError(""); setConnecting(true);
@@ -1603,11 +1874,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen grid-bg">
+      {testingModeFreeRuns && <TestingModeBanner />}
       <Header view={view} setView={setView} user={user} onConnect={connectWallet} onLogout={logout} connecting={connecting} walletError={walletError} />
 
-      {topView === "home" && <Home agents={agents} setView={setView} overallStats={overallStats} exploits={exploits} />}
-      {topView === "explorer" && <Explorer agents={agents} setView={setView} />}
-      {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
+      {topView === "home" && <Home services={services} serviceStats={serviceStats} setView={setView} overallStats={overallStats} exploits={exploits} />}
+      {topView === "explorer" && <Explorer services={services} serviceStats={serviceStats} setView={setView} />}
+      {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} testingModeFreeRuns={testingModeFreeRuns} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
       {topView === "report" && <ReportView report={report} setView={setView} />}
       {topView === "subscriptions" && <Subscriptions user={user} ensureWallet={connectWallet} onSubscribed={() => { refreshMe(); setView("dashboard"); }} />}
       {topView === "guide" && <Guide setView={setView} />}

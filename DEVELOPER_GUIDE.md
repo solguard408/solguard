@@ -55,7 +55,7 @@ solguard/
 ├── vercel.json                   # Vercel cron interval definitions (every 3 minutes)
 ├── package.json                  # Script targets & dependency manifest
 ├── tailwind.config.js            # Design system themes & utility classes
-├── backend_test.py               # Python regression test runner (Rate limits, Sanitization, API, SDKs)
+├── scripts/                      # Node QA scripts (rate limits, payments, services, holder regression)
 └── .env                          # Local environment secrets configuration
 ```
 
@@ -156,6 +156,9 @@ Create a `.env` file in the project root. The following keys are required for fu
 | `USDC_DEST_WALLET` | Wallet address that receives the scan/subscription fees | Solana pubkey (e.g. `AnBTwJ...`) |
 | `CORS_ORIGINS` | Limits allowed origins (useful for cross-domain SDK integrations) | `*` or specific domain |
 | `CRON_SECRET` | Auth header token to secure the watcher trigger on Vercel | Long secure token string |
+| `TESTING_MODE_FREE_RUNS` | **Dev/staging only.** When `true`, authenticated wallet users can run agents without payment (USDC/credits/subscription checks skipped). Rate limits still apply. **Must be `false` or unset in production.** | `false` (default) or `true` |
+
+> **Production risk:** If `TESTING_MODE_FREE_RUNS=true` is set on Vercel (or any live deployment), every authenticated user gets unlimited free agent runs with no USDC, credits, or subscription required. The UI shows an amber **TESTING MODE — Free Runs Enabled** badge and server logs `[TESTING MODE] Free run granted…` for each run. Always verify this variable is **absent or `false`** in production environment settings before shipping.
 
 ---
 
@@ -197,7 +200,6 @@ To solve this, SolGuard AI splits its background loops depending on the runtime 
 ### Prerequisites
 * Node.js (version 18+ recommended)
 * MongoDB (Local instance or Atlas connection string)
-* Python 3 (required to run the integration regression tests)
 
 ### Step 1: Install Dependencies
 ```bash
@@ -214,16 +216,15 @@ npm run dev
 The server will boot on `http://localhost:3000`.
 
 ### Step 4: Run the Regression Suite
-With the server running on port 3000, execute the python testing script in another shell:
+With the server running on port 3000, run the Node QA scripts in another shell:
 ```bash
-python backend_test.py
+node scripts/qa-rate-limit.mjs
+node scripts/qa-payment-dedupe.mjs
+node scripts/qa-stats-check.mjs
+node scripts/qa-holder-regression.mjs
+node scripts/qa-new-services.mjs
 ```
-This tests:
-1. **Live Exploit Feed**: Verifies DeFiLlama hooks and fallback mergers.
-2. **Rate Limiting**: Verifies the IP lockout threshold by sending 25 rapid requests.
-3. **Static SDK Files**: Checks accessibility and code symbols inside the JS and Python SDK targets.
-4. **Existing API Endpoints**: Checks routing for `/agents`, `/health`, `/stats/overall`, and auth-restricted endpoints.
-5. **Input Sanitization**: Verifies that invalid inputs are cleaned without triggering server crashes.
+These cover rate limiting, USDC payment dedupe, stats endpoints, holder-concentration RPC fixes, and marketplace service routes.
 
 ---
 

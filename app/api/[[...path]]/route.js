@@ -7,12 +7,17 @@ import { jsonDbError } from "@/lib/solguard/dbRoute";
 import { signToken, verifySolanaSignature, getAuthUser } from "@/lib/solguard/auth";
 import { startWatcher } from "@/lib/solguard/watcher";
 import { listAgents, getAgent, runAgent } from "@/lib/solguard/agents";
+import { listServices, getAllRollupAgentIds } from "@/lib/solguard/services";
+import { getServiceDetail, buildCurlExample } from "@/lib/solguard/serviceDetail";
+import { getProofMetadata, verifyIntegrityProof } from "@/lib/solguard/integrityProof";
+import { retrieveEncryptedRecord } from "@/lib/solguard/encryptionVault";
 import { verifyUsdcPayment, getPaymentConfig } from "@/lib/solguard/payment";
 import { getExploits } from "@/lib/solguard/exploitFeed";
 import { runTokenScan } from "@/lib/solguard/scanEngine";
 import { checkAgentRunLimit, checkUserGlobalLimit, checkIpAuthLimit, checkIpPublicLimit } from "@/lib/solguard/rateLimit";
 import { sanitizeAgentInputs } from "@/lib/solguard/sanitize";
 import { initializeDatabase } from "@/lib/solguard/initDb";
+import { isTestingModeFreeRuns } from "@/lib/solguard/testingMode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +60,12 @@ async function handleRouteInner(request, segments) {
   // ---------- HEALTH ----------
   if (method === "GET" && path === "/health") return json({ status: "ok", timestamp: new Date().toISOString() });
 
+  if (method === "GET" && path === "/config") {
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    return json({ testingModeFreeRuns: isTestingModeFreeRuns() });
+  }
+
   // ---------- PAYMENT CONFIG ----------
   if (method === "GET" && path === "/payment/config") return json(getPaymentConfig());
 
@@ -80,8 +91,8 @@ async function handleRouteInner(request, segments) {
 
     let user = await db.collection("users").findOne({ walletAddress });
     if (!user) {
-      // 2 free credits ONLY, non-renewable. Track via creditsGranted to prevent farming.
-      user = { id: uuidv4(), walletAddress, credits: 2, creditsGranted: 2, plan: "FREE", createdAt: new Date() };
+      // New users start with zero credits — paid USDC or subscription required.
+      user = { id: uuidv4(), walletAddress, credits: 0, creditsGranted: 0, plan: "FREE", createdAt: new Date() };
       await db.collection("users").insertOne(user);
     }
     const token = signToken({ userId: user.id, walletAddress });
@@ -97,6 +108,53 @@ async function handleRouteInner(request, segments) {
 
   // ---------- AGENTS ----------
   if (method === "GET" && path === "/agents") return json({ agents: listAgents() });
+  if (method === "GET" && path === "/services") {
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    return json({ services: listServices() });
+  }
+  if (method === "GET" && /^\/services\/[^/]+$/.test(path)) {
+    const serviceId = path.split("/")[2];
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const detail = getServiceDetail(serviceId);
+    if (!detail) return json({ error: "Service not found" }, 404);
+    const origin = request.headers.get("origin") || request.headers.get("x-forwarded-host") || "https://solguard.ai";
+    const base = origin.startsWith("http") ? origin : `https://${origin}`;
+    return json({ ...detail, curlExample: buildCurlExample(serviceId, base) });
+  }
+
+  // ---------- INTEGRITY PROOF (public verify) ----------
+  if (method === "GET" && /^\/verify\/proof\/[^/]+$/.test(path)) {
+    const proofId = path.split("/")[3];
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const meta = await getProofMetadata(proofId);
+    if (!meta) return json({ error: "Proof not found" }, 404);
+    return json(meta);
+  }
+  if (method === "POST" && /^\/verify\/proof\/[^/]+$/.test(path)) {
+    const proofId = path.split("/")[3];
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const body = await request.json().catch(() => ({}));
+    const data = body?.data ?? body?.cpdv_data;
+    if (typeof data !== "string" || !data.length) return json({ error: "data field required" }, 400);
+    if (data.length > 500000) return json({ error: "Payload too large" }, 400);
+    const result = await verifyIntegrityProof(proofId, data.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim());
+    if (!result.ok && result.error) return json({ error: result.error }, 404);
+    return json(result);
+  }
+
+  // ---------- ENCRYPTION VAULT (owner decrypt) ----------
+  if (method === "GET" && /^\/vault\/[^/]+$/.test(path)) {
+    const recordId = path.split("/")[2];
+    const a = await requireAuth(request);
+    if (!a) return json({ error: "Authentication required" }, 401);
+    const result = await retrieveEncryptedRecord(recordId, a.user.id);
+    if (result.error) return json({ error: result.error }, result.error === "Unauthorized" ? 403 : 404);
+    return json(result);
+  }
   if (method === "GET" && path.startsWith("/agents/") && !path.includes("/run") && !path.includes("/reports")) {
     const id = path.replace("/agents/", "");
     const agent = getAgent(id);
@@ -131,7 +189,10 @@ async function handleRouteInner(request, segments) {
 
     // Payment resolution
     let billing = { method: paymentMethod };
-    if (paymentMethod === "credit") {
+    if (isTestingModeFreeRuns()) {
+      console.log(`[TESTING MODE] Free run granted, no payment required — wallet: ${user.walletAddress}, agent: ${id}`);
+      billing = { method: "testing", testingMode: true };
+    } else if (paymentMethod === "credit") {
       if ((user.credits || 0) <= 0) return json({ error: "No free credits left. Pay 0.10 USDC or subscribe." }, 402);
     } else if (paymentMethod === "subscription") {
       const sub = await activeSubscription(db, user.id);
@@ -147,14 +208,16 @@ async function handleRouteInner(request, segments) {
     }
 
     // Run with sanitized inputs
-    const exec = await runAgent(id, cleanInputs);
+    const exec = await runAgent(id, cleanInputs, { userId: user.id, walletAddress: user.walletAddress });
     if (exec.error) return json({ error: exec.error }, 400);
 
-    // Deduct after success
-    if (paymentMethod === "credit") {
-      await db.collection("users").updateOne({ id: user.id }, { $inc: { credits: -1 } });
-    } else if (paymentMethod === "subscription") {
-      await db.collection("subscriptions").updateOne({ id: billing.subscriptionId, quota: { $ne: -1 } }, { $inc: { remaining: -1 } });
+    // Deduct after success (skipped in testing mode)
+    if (!isTestingModeFreeRuns()) {
+      if (paymentMethod === "credit") {
+        await db.collection("users").updateOne({ id: user.id }, { $inc: { credits: -1 } });
+      } else if (paymentMethod === "subscription") {
+        await db.collection("subscriptions").updateOne({ id: billing.subscriptionId, quota: { $ne: -1 } }, { $inc: { remaining: -1 } });
+      }
     }
 
     // Persist report
@@ -293,6 +356,29 @@ async function handleRouteInner(request, segments) {
     if (!rl.ok) return json({ error: "Rate limit" }, 429);
     const exploits = await getExploits();
     return json({ exploits, source: "live+fallback", updatedAt: new Date().toISOString() });
+  }
+  if (method === "GET" && path === "/stats/services") {
+    const rl = checkIpPublicLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const now = Date.now();
+    const last30 = new Date(now - 30 * 86400_000);
+    const reports = db.collection("reports");
+    const services = listServices();
+    const stats = [];
+    for (const svc of services) {
+      const agentIds = getAllRollupAgentIds(svc);
+      const match = { agentId: { $in: agentIds }, createdAt: { $gte: last30 } };
+      const count30d = await reports.countDocuments(match);
+      const dailyBuckets = Array(30).fill(0);
+      const cursor = reports.find(match, { projection: { createdAt: 1 } });
+      for await (const doc of cursor) {
+        const ts = doc.createdAt instanceof Date ? doc.createdAt.getTime() : new Date(doc.createdAt).getTime();
+        const dayIdx = Math.floor((ts - last30.getTime()) / 86400000);
+        if (dayIdx >= 0 && dayIdx < 30) dailyBuckets[dayIdx]++;
+      }
+      stats.push({ serviceId: svc.id, count30d, dailyBuckets });
+    }
+    return json({ services: stats, updatedAt: new Date().toISOString() });
   }
   if (method === "GET" && path === "/stats/overall") {
     const STATS_BASELINE = {
