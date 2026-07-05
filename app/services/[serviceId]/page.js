@@ -15,5 +15,5 @@ export async function generateStaticParams() {
 
 export default async function Page({ params }) {
   const { serviceId } = await params;
-  return <ServiceDetailPage serviceId={serviceId} />;
+  return <ServiceDetailPage key={serviceId} serviceId={serviceId} />;
 }

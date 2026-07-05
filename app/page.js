@@ -12,8 +12,9 @@ import {
   Globe, MessageSquare, UserCog, ChevronRight, Filter, Zap, Book, Code2, CreditCard, BarChart3,
   CircleDollarSign, Flame, Clock, X, Send, Bot, Fingerprint, KeyRound,
 } from "lucide-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createTransferCheckedInstruction, createAssociatedTokenAccountInstruction, getAccount } from "@solana/spl-token";
+import { validateRunInputs, isRunInputValid } from "@/lib/solguard/runValidation";
+import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
+import { freeCreditButtonLabel } from "@/lib/solguard/credits";
 
 // --- icon map (server returns icon name as string)
 const ICONS = { Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp, Activity, Globe, Wallet, UserCog, Shield, MessageSquare, Bot, Fingerprint, KeyRound };
@@ -54,7 +55,7 @@ function authHeaders() {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 async function api(path, opts = {}) {
-  const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) } });
+  const res = await fetch(path, { cache: "no-store", ...opts, headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) } });
   let data; try { data = await res.json(); } catch { data = null; }
   return { ok: res.ok, status: res.status, data };
 }
@@ -366,41 +367,6 @@ function WhatsNextSection() {
       </div>
     </section>
   );
-}
-
-// ===================== USDC PAYMENT (Phantom) =====================
-const HELIUS_RPC = "/api"; // proxy not needed; we use direct RPC URL fetched from server
-async function sendUsdcPayment({ amountUsdc, walletProvider }) {
-  // Get config from server
-  const cfg = await api("/api/payment/config");
-  if (!cfg.ok) throw new Error("Could not fetch payment config");
-  const { mint, destWallet } = cfg.data;
-
-  // Use a public Solana RPC for browser-side tx (no Helius key exposure)
-  const conn = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
-  const payer = new PublicKey(walletProvider.publicKey.toString());
-  const mintPk = new PublicKey(mint);
-  const destPk = new PublicKey(destWallet);
-
-  const srcAta = await getAssociatedTokenAddress(mintPk, payer);
-  const destAta = await getAssociatedTokenAddress(mintPk, destPk);
-
-  const ixs = [];
-  // Ensure destination ATA exists
-  try { await getAccount(conn, destAta); } catch (e) { ixs.push(createAssociatedTokenAccountInstruction(payer, destAta, destPk, mintPk)); }
-
-  const amountRaw = BigInt(Math.round(amountUsdc * 1_000_000)); // USDC has 6 decimals
-  ixs.push(createTransferCheckedInstruction(srcAta, mintPk, destAta, payer, amountRaw, 6));
-
-  const tx = new Transaction().add(...ixs);
-  tx.feePayer = payer;
-  const { blockhash } = await conn.getLatestBlockhash();
-  tx.recentBlockhash = blockhash;
-
-  const signed = await walletProvider.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(signed.serialize());
-  await conn.confirmTransaction(sig, "confirmed");
-  return sig;
 }
 
 // ===================== PAYMENT MODAL =====================
@@ -773,14 +739,17 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
 
   if (!agent) return <div className="max-w-5xl mx-auto px-5 py-20 text-center text-slate-500"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
   const Icon = ICONS[agent.icon] || Shield;
-  const allFilled = agent.inputs.every((i) => inputs[i.key] && inputs[i.key].trim().length > 0);
+  const formValid = isRunInputValid(agent.id, inputs);
+  const creditLabel = !testingModeFreeRuns ? freeCreditButtonLabel(user?.credits) : null;
 
   async function executeRun(paymentMethod, paymentSignature = null) {
     setBusy(true); setError("");
     try {
+      const validated = validateRunInputs(agent.id, inputs);
+      if (validated.error) throw new Error(validated.error);
       const r = await api(`/api/agents/${agent.id}/run`, {
         method: "POST",
-        body: JSON.stringify({ inputs, paymentMethod, paymentSignature }),
+        body: JSON.stringify({ inputs: validated.inputs, paymentMethod, paymentSignature }),
       });
       if (!r.ok) throw new Error(r.data?.error || "Run failed");
       setPayOpen(false);
@@ -795,7 +764,10 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
   function start() {
     setError("");
     if (!user) { ensureWallet(); return; }
+    const validated = validateRunInputs(agent.id, inputs);
+    if (validated.error) { setError(validated.error); return; }
     if (testingModeFreeRuns) executeRun("testing");
+    else if ((user.credits || 0) > 0) executeRun("credit");
     else setPayOpen(true);
   }
 
@@ -803,9 +775,7 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
     try {
       let paymentSignature = null;
       if (choice === "usdc") {
-        const provider = typeof window !== "undefined" ? window.solana : null;
-        if (!provider?.isPhantom) throw new Error("Phantom wallet not detected");
-        if (!provider.isConnected) await provider.connect();
+        const provider = await ensurePhantomProvider();
         paymentSignature = await sendUsdcPayment({ amountUsdc: agent.price, walletProvider: provider });
       }
       await executeRun(choice, paymentSignature);
@@ -879,9 +849,9 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
               </div>
             ))}
             {error && <div className="text-sm text-rose-400 mb-3">⚠ {error}</div>}
-            <button onClick={start} disabled={!allFilled || busy}
+            <button onClick={start} disabled={!formValid || busy}
               className="w-full px-6 py-3 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 disabled:opacity-40 transition terminal-text tracking-wider flex items-center justify-center gap-2">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {user ? (testingModeFreeRuns ? "RUN ANALYSIS (FREE)" : "START ANALYSIS") : "CONNECT WALLET TO RUN"}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />} {user ? (testingModeFreeRuns ? "RUN ANALYSIS (FREE)" : (creditLabel || "START ANALYSIS")) : "CONNECT WALLET TO RUN"}
             </button>
           </div>
         </div>
@@ -1149,9 +1119,7 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
     if (plan.custom) { setError("Contact sales for Business plan: hello@solguard.ai"); return; }
     setBusy(plan.id);
     try {
-      const provider = window.solana;
-      if (!provider?.isPhantom) throw new Error("Phantom wallet not detected");
-      if (!provider.isConnected) await provider.connect();
+      const provider = await ensurePhantomProvider();
       const sig = await sendUsdcPayment({ amountUsdc: plan.priceUsdc, walletProvider: provider });
       const r = await api("/api/subscriptions/subscribe", { method: "POST", body: JSON.stringify({ plan: plan.id, paymentSignature: sig }) });
       if (!r.ok) throw new Error(r.data?.error || "Subscription failed");

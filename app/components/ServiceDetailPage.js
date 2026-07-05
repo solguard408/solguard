@@ -11,11 +11,9 @@ import {
   Shield, Lock, Wallet, MessageSquare, Coins, Layers, Users, Droplets, FileText,
   Sparkles, ShieldAlert, TrendingUp, Activity, Globe, UserCog,
 } from "lucide-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress, createTransferCheckedInstruction,
-  createAssociatedTokenAccountInstruction, getAccount,
-} from "@solana/spl-token";
+import { validateRunInputsForService, isRunInputValidForService } from "@/lib/solguard/runValidation";
+import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
+import { freeCreditButtonLabel } from "@/lib/solguard/credits";
 
 const ICONS = {
   Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp,
@@ -29,38 +27,13 @@ function authHeaders() {
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
+    cache: "no-store",
     ...opts,
     headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
   });
   let data;
   try { data = await res.json(); } catch { data = null; }
   return { ok: res.ok, status: res.status, data };
-}
-
-async function sendUsdcPayment({ amountUsdc, walletProvider }) {
-  const cfg = await api("/api/payment/config");
-  if (!cfg.ok) throw new Error("Payment config unavailable");
-  const { usdcMint, destWallet, rpcUrl } = cfg.data;
-  const conn = new Connection(rpcUrl, "confirmed");
-  const payer = walletProvider.publicKey;
-  const mint = new PublicKey(usdcMint);
-  const dest = new PublicKey(destWallet);
-  const payerAta = await getAssociatedTokenAddress(mint, payer);
-  const destAta = await getAssociatedTokenAddress(mint, dest);
-  const tx = new Transaction();
-  try {
-    await getAccount(conn, payerAta);
-  } catch {
-    tx.add(createAssociatedTokenAccountInstruction(payer, payerAta, payer, mint));
-  }
-  const amount = Math.round(amountUsdc * 1e6);
-  tx.add(createTransferCheckedInstruction(payerAta, mint, destAta, payer, amount, 6));
-  tx.feePayer = payer;
-  tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-  const signed = await walletProvider.signTransaction(tx);
-  const sig = await conn.sendRawTransaction(signed.serialize());
-  await conn.confirmTransaction(sig, "confirmed");
-  return sig;
 }
 
 export default function ServiceDetailPage({ serviceId }) {
@@ -76,13 +49,20 @@ export default function ServiceDetailPage({ serviceId }) {
   const [walletError, setWalletError] = useState("");
 
   useEffect(() => {
+    setDetail(null);
+    setInputs({});
+    setError("");
+    setWalletError("");
+    let active = true;
     (async () => {
       const [d, cfg, me] = await Promise.all([
         api(`/api/services/${serviceId}`),
         api("/api/config"),
         api("/api/me"),
       ]);
+      if (!active) return;
       if (d.ok) {
+        if (d.data.id !== serviceId) return;
         setDetail(d.data);
         const init = {};
         for (const i of d.data.agent?.inputs || []) init[i.key] = "";
@@ -91,6 +71,7 @@ export default function ServiceDetailPage({ serviceId }) {
       if (cfg.ok) setTestingMode(!!cfg.data.testingModeFreeRuns);
       if (me.ok) setUser(me.data);
     })();
+    return () => { active = false; };
   }, [serviceId]);
 
   async function connectWallet() {
@@ -130,17 +111,18 @@ export default function ServiceDetailPage({ serviceId }) {
     setError("");
     if (!user) { await connectWallet(); return; }
     const agent = detail?.agent;
-    if (!agent) return;
-    const allFilled = agent.inputs.every((i) => inputs[i.key]?.trim());
-    if (!allFilled) { setError("Fill all required fields"); return; }
+    if (!agent || detail.id !== serviceId) return;
+
+    const validated = validateRunInputsForService(serviceId, inputs);
+    if (validated.error) { setError(validated.error); return; }
 
     setBusy(true);
     try {
       let paymentMethod = testingMode ? "testing" : "usdc";
       let paymentSignature = null;
+      // Payment only — validation above is identical in testing and normal mode
       if (!testingMode && (user.credits || 0) <= 0 && !user.subscription) {
-        const provider = window.solana;
-        if (!provider?.isPhantom) throw new Error("Phantom wallet not detected");
+        const provider = await ensurePhantomProvider();
         paymentSignature = await sendUsdcPayment({ amountUsdc: agent.price, walletProvider: provider });
       } else if (!testingMode && (user.credits || 0) > 0) {
         paymentMethod = "credit";
@@ -150,9 +132,11 @@ export default function ServiceDetailPage({ serviceId }) {
 
       const r = await api(`/api/agents/${agent.id}/run`, {
         method: "POST",
-        body: JSON.stringify({ inputs, paymentMethod, paymentSignature }),
+        body: JSON.stringify({ inputs: validated.inputs, paymentMethod, paymentSignature }),
       });
       if (!r.ok) throw new Error(r.data?.error || "Run failed");
+      const me = await api("/api/me");
+      if (me.ok) setUser(me.data);
       const proofId = r.data.rawEvidence?.proof_id || r.data.rawEvidence?.proofId;
       if (proofId) {
         router.push(`/verify/${proofId}`);
@@ -177,7 +161,8 @@ export default function ServiceDetailPage({ serviceId }) {
 
   const agent = detail.agent;
   const Icon = ICONS[agent.icon] || Shield;
-  const allFilled = agent.inputs.every((i) => inputs[i.key]?.trim());
+  const formValid = isRunInputValidForService(serviceId, inputs);
+  const creditLabel = !testingMode ? freeCreditButtonLabel(user?.credits) : null;
   const shareUrl = typeof window !== "undefined" ? window.location.href : `https://solguard.ai/services/${serviceId}`;
 
   function copyCurl() {
@@ -193,7 +178,12 @@ export default function ServiceDetailPage({ serviceId }) {
           <Link href="/" className="flex-shrink-0"><BrandLogo size="sm" /></Link>
           <div className="flex items-center gap-3">
             {user ? (
-              <span className="text-xs text-slate-600 hidden sm:inline">{user.walletAddress?.slice(0, 4)}…{user.walletAddress?.slice(-4)}</span>
+              <span className="text-xs text-slate-600 hidden sm:inline flex items-center gap-1.5">
+                <span>{user.walletAddress?.slice(0, 4)}…{user.walletAddress?.slice(-4)}</span>
+                {(user.credits || 0) > 0 && (
+                  <span className="text-trust-600 font-medium">{user.credits} cr</span>
+                )}
+              </span>
             ) : (
               <button onClick={connectWallet} disabled={connecting} className="text-xs px-3 py-1.5 rounded-md border border-trust-300 text-trust-700 hover:bg-trust-50">
                 {connecting ? "Connecting…" : "Connect wallet"}
@@ -303,7 +293,16 @@ export default function ServiceDetailPage({ serviceId }) {
                   {inp.multiline ? (
                     <textarea
                       value={inputs[inp.key] || ""}
-                      onChange={(e) => setInputs({ ...inputs, [inp.key]: e.target.value })}
+                      onChange={(e) => {
+                        setError("");
+                        setInputs((prev) => {
+                          const next = { [inp.key]: e.target.value };
+                          for (const field of agent.inputs) {
+                            if (field.key !== inp.key) next[field.key] = prev[field.key] ?? "";
+                          }
+                          return next;
+                        });
+                      }}
                       placeholder={inp.placeholder}
                       rows={4}
                       className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm font-mono outline-none focus:border-trust-500"
@@ -311,13 +310,37 @@ export default function ServiceDetailPage({ serviceId }) {
                   ) : (
                     <input
                       value={inputs[inp.key] || ""}
-                      onChange={(e) => setInputs({ ...inputs, [inp.key]: e.target.value })}
+                      onChange={(e) => {
+                        setError("");
+                        setInputs((prev) => {
+                          const next = { [inp.key]: e.target.value };
+                          for (const field of agent.inputs) {
+                            if (field.key !== inp.key) next[field.key] = prev[field.key] ?? "";
+                          }
+                          return next;
+                        });
+                      }}
                       placeholder={inp.placeholder}
                       className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-trust-500"
                     />
                   )}
                   {inp.example && (
-                    <button type="button" onClick={() => setInputs({ ...inputs, [inp.key]: inp.example })} className="text-[11px] text-trust-600 mt-1">Use example →</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setInputs((prev) => {
+                          const next = { ...prev, [inp.key]: inp.example };
+                          for (const field of agent.inputs) {
+                            if (!(field.key in next)) next[field.key] = "";
+                          }
+                          return next;
+                        });
+                      }}
+                      className="text-[11px] text-trust-600 mt-1"
+                    >
+                      Use example →
+                    </button>
                   )}
                 </div>
               ))}
@@ -327,11 +350,13 @@ export default function ServiceDetailPage({ serviceId }) {
               <button
                 type="button"
                 onClick={runAgent}
-                disabled={!allFilled || busy}
+                disabled={!formValid || busy}
                 className="w-full py-3 rounded-md bg-trust-600 text-white font-bold text-sm hover:bg-trust-500 disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                {user ? (testingMode ? "Run (free)" : "Pay & run") : "Connect wallet & run"}
+                {user
+                  ? (testingMode ? "Run (free)" : (creditLabel || "Pay & run"))
+                  : "Connect wallet & run"}
               </button>
 
               <Link href="/?view=subscriptions" className="block text-center text-xs text-trust-600 hover:text-trust-700 mt-3">

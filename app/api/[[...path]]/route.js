@@ -12,12 +12,14 @@ import { getServiceDetail, buildCurlExample } from "@/lib/solguard/serviceDetail
 import { getProofMetadata, verifyIntegrityProof } from "@/lib/solguard/integrityProof";
 import { retrieveEncryptedRecord } from "@/lib/solguard/encryptionVault";
 import { verifyUsdcPayment, getPaymentConfig } from "@/lib/solguard/payment";
+import { fetchLatestBlockhash, tokenAccountExists, sendSignedTransaction } from "@/lib/solguard/rpcProxy";
 import { getExploits } from "@/lib/solguard/exploitFeed";
 import { runTokenScan } from "@/lib/solguard/scanEngine";
 import { checkAgentRunLimit, checkUserGlobalLimit, checkIpAuthLimit, checkIpPublicLimit } from "@/lib/solguard/rateLimit";
-import { sanitizeAgentInputs } from "@/lib/solguard/sanitize";
+import { sanitizeRunInputs } from "@/lib/solguard/runValidation";
 import { initializeDatabase } from "@/lib/solguard/initDb";
 import { isTestingModeFreeRuns } from "@/lib/solguard/testingMode";
+import { SIGNUP_FREE_CREDITS } from "@/lib/solguard/credits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +71,49 @@ async function handleRouteInner(request, segments) {
   // ---------- PAYMENT CONFIG ----------
   if (method === "GET" && path === "/payment/config") return json(getPaymentConfig());
 
+  // ---------- RPC PROXY (Helius server-side; auth required) ----------
+  if (method === "GET" && path === "/rpc/blockhash") {
+    const a = await requireAuth(request);
+    if (!a) return json({ error: "Unauthorized" }, 401);
+    const rl = checkIpAuthLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    try {
+      return json(await fetchLatestBlockhash());
+    } catch (e) {
+      return json({ error: e.message || "RPC error" }, 502);
+    }
+  }
+  if (method === "GET" && path === "/rpc/token-account") {
+    const a = await requireAuth(request);
+    if (!a) return json({ error: "Unauthorized" }, 401);
+    const rl = checkIpAuthLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const url = new URL(request.url);
+    const mint = url.searchParams.get("mint")?.trim();
+    const owner = url.searchParams.get("owner")?.trim();
+    if (!mint || !owner || !isValidSolanaAddress(mint) || !isValidSolanaAddress(owner)) {
+      return json({ error: "Invalid mint or owner" }, 400);
+    }
+    try {
+      return json({ exists: await tokenAccountExists(mint, owner) });
+    } catch (e) {
+      return json({ error: e.message || "RPC error" }, 502);
+    }
+  }
+  if (method === "POST" && path === "/rpc/send-transaction") {
+    const a = await requireAuth(request);
+    if (!a) return json({ error: "Unauthorized" }, 401);
+    const rl = checkIpAuthLimit({ ip });
+    if (!rl.ok) return json({ error: "Rate limit" }, 429);
+    const body = await request.json().catch(() => ({}));
+    try {
+      const signature = await sendSignedTransaction(body?.transaction);
+      return json({ signature });
+    } catch (e) {
+      return json({ error: e.message || "Transaction failed" }, 502);
+    }
+  }
+
   // ---------- AUTH ----------
   if (method === "POST" && path === "/auth/nonce") {
     const rl = checkIpAuthLimit({ ip });
@@ -91,8 +136,14 @@ async function handleRouteInner(request, segments) {
 
     let user = await db.collection("users").findOne({ walletAddress });
     if (!user) {
-      // New users start with zero credits — paid USDC or subscription required.
-      user = { id: uuidv4(), walletAddress, credits: 0, creditsGranted: 0, plan: "FREE", createdAt: new Date() };
+      user = {
+        id: uuidv4(),
+        walletAddress,
+        credits: SIGNUP_FREE_CREDITS,
+        creditsGranted: SIGNUP_FREE_CREDITS,
+        plan: "FREE",
+        createdAt: new Date(),
+      };
       await db.collection("users").insertOne(user);
     }
     const token = signToken({ userId: user.id, walletAddress });
@@ -182,8 +233,8 @@ async function handleRouteInner(request, segments) {
     const rlUser = checkUserGlobalLimit({ userId: user.id, isPremium });
     if (!rlUser.ok) return json({ error: `Global rate limit exceeded. Retry in ${Math.ceil(rlUser.resetIn / 1000)}s.` }, 429);
 
-    // Sanitize inputs (strip control chars, length caps, SSRF protection on URL)
-    const san = sanitizeAgentInputs(inputs);
+    // Input validation — always runs before payment (testing mode only bypasses payment)
+    const san = sanitizeRunInputs(id, inputs);
     if (san.error) return json({ error: san.error }, 400);
     const cleanInputs = san.inputs;
 
@@ -193,7 +244,13 @@ async function handleRouteInner(request, segments) {
       console.log(`[TESTING MODE] Free run granted, no payment required — wallet: ${user.walletAddress}, agent: ${id}`);
       billing = { method: "testing", testingMode: true };
     } else if (paymentMethod === "credit") {
-      if ((user.credits || 0) <= 0) return json({ error: "No free credits left. Pay 0.10 USDC or subscribe." }, 402);
+      const reserved = await db.collection("users").findOneAndUpdate(
+        { id: user.id, credits: { $gt: 0 } },
+        { $inc: { credits: -1 } },
+        { returnDocument: "after" }
+      );
+      if (!reserved) return json({ error: "No free credits left. Pay 0.10 USDC or subscribe." }, 402);
+      billing.creditsRemaining = reserved.credits;
     } else if (paymentMethod === "subscription") {
       const sub = await activeSubscription(db, user.id);
       if (!sub) return json({ error: "No active subscription" }, 402);
@@ -209,13 +266,16 @@ async function handleRouteInner(request, segments) {
 
     // Run with sanitized inputs
     const exec = await runAgent(id, cleanInputs, { userId: user.id, walletAddress: user.walletAddress });
-    if (exec.error) return json({ error: exec.error }, 400);
+    if (exec.error) {
+      if (paymentMethod === "credit" && !isTestingModeFreeRuns()) {
+        await db.collection("users").updateOne({ id: user.id }, { $inc: { credits: 1 } });
+      }
+      return json({ error: exec.error }, 400);
+    }
 
-    // Deduct after success (skipped in testing mode)
+    // Deduct after success (skipped in testing mode; credit reserved atomically above)
     if (!isTestingModeFreeRuns()) {
-      if (paymentMethod === "credit") {
-        await db.collection("users").updateOne({ id: user.id }, { $inc: { credits: -1 } });
-      } else if (paymentMethod === "subscription") {
+      if (paymentMethod === "subscription") {
         await db.collection("subscriptions").updateOne({ id: billing.subscriptionId, quota: { $ne: -1 } }, { $inc: { remaining: -1 } });
       }
     }
