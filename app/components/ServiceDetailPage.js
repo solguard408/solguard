@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BrandLogo from "../components/BrandLogo";
-import { X402InlineTag } from "../components/X402ComingSoon";
+import { X402InlineTag } from "../components/X402Status";
 import bs58 from "bs58";
 import {
   CheckCircle2, Copy, Loader2, Zap, ChevronRight, Twitter, Bot, Fingerprint, KeyRound,
@@ -14,6 +14,7 @@ import {
 import { validateRunInputsForService, isRunInputValidForService } from "@/lib/solguard/runValidation";
 import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
 import { freeCreditButtonLabel } from "@/lib/solguard/credits";
+import { shouldUseX402, runAgentViaX402 } from "@/lib/solguard/x402Run";
 
 const ICONS = {
   Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp,
@@ -41,6 +42,7 @@ export default function ServiceDetailPage({ serviceId }) {
   const [detail, setDetail] = useState(null);
   const [user, setUser] = useState(null);
   const [testingMode, setTestingMode] = useState(false);
+  const [x402Agents, setX402Agents] = useState([]);
   const [inputs, setInputs] = useState({});
   const [busy, setBusy] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -68,7 +70,7 @@ export default function ServiceDetailPage({ serviceId }) {
         for (const i of d.data.agent?.inputs || []) init[i.key] = "";
         setInputs(init);
       }
-      if (cfg.ok) setTestingMode(!!cfg.data.testingModeFreeRuns);
+      if (cfg.ok) { setTestingMode(!!cfg.data.testingModeFreeRuns); setX402Agents(cfg.data.x402Agents || []); }
       if (me.ok) setUser(me.data);
     })();
     return () => { active = false; };
@@ -118,22 +120,43 @@ export default function ServiceDetailPage({ serviceId }) {
 
     setBusy(true);
     try {
-      let paymentMethod = testingMode ? "testing" : "usdc";
-      let paymentSignature = null;
-      // Payment only — validation above is identical in testing and normal mode
-      if (!testingMode && (user.credits || 0) <= 0 && !user.subscription) {
-        const provider = await ensurePhantomProvider();
-        paymentSignature = await sendUsdcPayment({ amountUsdc: agent.price, walletProvider: provider });
-      } else if (!testingMode && (user.credits || 0) > 0) {
-        paymentMethod = "credit";
-      } else if (!testingMode && user.subscription) {
-        paymentMethod = "subscription";
-      }
-
-      const r = await api(`/api/agents/${agent.id}/run`, {
-        method: "POST",
-        body: JSON.stringify({ inputs: validated.inputs, paymentMethod, paymentSignature }),
+      const useX402 = shouldUseX402({
+        agentId: agent.id,
+        x402Agents,
+        testingMode,
+        credits: user.credits,
+        hasSubscription: !!user.subscription,
       });
+
+      let r;
+      if (useX402) {
+        const provider = await ensurePhantomProvider();
+        const data = await runAgentViaX402({
+          agentId: agent.id,
+          inputs: validated.inputs,
+          walletProvider: provider,
+          amountUsdc: agent.price,
+        });
+        r = { ok: true, data };
+      } else {
+        const needsPaidRun = !testingMode && (user.credits || 0) <= 0 && !user.subscription;
+        let paymentMethod = testingMode ? "testing" : "usdc";
+        let paymentSignature = null;
+        // Payment only — validation above is identical in testing and normal mode
+        if (needsPaidRun) {
+          const provider = await ensurePhantomProvider();
+          paymentSignature = await sendUsdcPayment({ amountUsdc: agent.price, walletProvider: provider });
+        } else if (!testingMode && (user.credits || 0) > 0) {
+          paymentMethod = "credit";
+        } else if (!testingMode && user.subscription) {
+          paymentMethod = "subscription";
+        }
+
+        r = await api(`/api/agents/${agent.id}/run`, {
+          method: "POST",
+          body: JSON.stringify({ inputs: validated.inputs, paymentMethod, paymentSignature }),
+        });
+      }
       if (!r.ok) throw new Error(r.data?.error || "Run failed");
       const me = await api("/api/me");
       if (me.ok) setUser(me.data);
@@ -163,7 +186,7 @@ export default function ServiceDetailPage({ serviceId }) {
   const Icon = ICONS[agent.icon] || Shield;
   const formValid = isRunInputValidForService(serviceId, inputs);
   const creditLabel = !testingMode ? freeCreditButtonLabel(user?.credits) : null;
-  const shareUrl = typeof window !== "undefined" ? window.location.href : `https://solguard.ai/services/${serviceId}`;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : `https://www.solguard.space/services/${serviceId}`;
 
   function copyCurl() {
     navigator.clipboard.writeText(detail.curlExample || "");
@@ -284,7 +307,7 @@ export default function ServiceDetailPage({ serviceId }) {
                   {testingMode ? "FREE" : `$${agent.price.toFixed(2)}`}
                 </div>
                 <div className="text-xs text-slate-500">{testingMode ? "testing mode active" : "per call · USDC on Solana"}</div>
-                <div className="mt-2"><X402InlineTag /></div>
+                <div className="mt-2"><X402InlineTag enabled={x402Agents.includes(agent.id)} /></div>
               </div>
 
               {agent.inputs.map((inp) => (

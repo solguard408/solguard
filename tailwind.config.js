@@ -94,8 +94,9 @@ module.exports = {
           sm: 'calc(var(--radius) - 4px)'
         },
         fontFamily: {
-          sans: ['var(--font-orbitron)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-          brand: ['var(--font-orbitron)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+          brand: ['var(--font-brand)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         },
         boxShadow: {
           'trust-sm': '0 1px 3px rgba(37, 99, 235, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04)',

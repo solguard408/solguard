@@ -287,3 +287,16 @@ To add a new security scanner agent to the marketplace:
    ```
 4. **Update the Icon Map**:
    If the agent uses a new Lucide React icon, ensure it is imported and registered in the `ICONS` map inside `app/page.js` (line 16) so it renders correctly on the frontend dashboard.
+
+---
+
+## Pre-launch deploy checklist
+
+Before pushing to production at **https://www.solguard.space**:
+
+1. **Vercel env:** `TESTING_MODE_FREE_RUNS` must be **unset or `false`**. Never ship with testing mode on.
+2. **Secrets:** Confirm `.env` is not committed; no API keys in tracked files.
+3. **MongoDB indexes:** Run `node scripts/migrate-cli-indexes.mjs` once on production (drops legacy non-sparse `walletAddress_1` if present; creates sparse indexes for `walletAddress` and `cliInstallId`).
+4. **x402:** Devnet-only in this phase. `X402_NETWORK` must not point at mainnet. Real-money flows use mainnet USDC via `payment.js`.
+5. **CLI:** Do not `npm publish` until manual review. Default API URL is `https://www.solguard.space/api`.
+6. **Rate limits:** `/api/auth/cli` and wallet auth share **20 req/min per IP** (`checkIpAuthLimit`).

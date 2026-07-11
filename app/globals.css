@@ -24,12 +24,16 @@
 html, body {
   background: #F8FAFC;
   color: #1E293B;
-  font-family: var(--font-orbitron), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Uppercase tracking labels (nav badges, LIVE tags) — not for body prose */
+.terminal-text { font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.04em; font-size: 0.85em; font-weight: 600; text-transform: uppercase; }
+
+.guide-code { font-family: var(--font-mono), ui-monospace, monospace; }
 
 .neon-glow { box-shadow: 0 0 24px rgba(37, 99, 235, 0.14); }
 .neon-border { border-color: #2563EB; box-shadow: 0 0 12px rgba(37, 99, 235, 0.2); }
-.terminal-text { font-family: var(--font-orbitron), ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.06em; }
 
 .grid-bg {
   background-color: #F8FAFC;

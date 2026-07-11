@@ -1,10 +1,22 @@
 import "./globals.css";
 import Footer from "./components/Footer";
-import { Orbitron } from "next/font/google";
+import { Inter, JetBrains_Mono, Orbitron } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 const orbitron = Orbitron({
   subsets: ["latin"],
-  variable: "--font-orbitron",
+  variable: "--font-brand",
   weight: ["400", "500", "600", "700", "800", "900"],
   display: "swap",
 });
@@ -21,8 +33,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={orbitron.variable}>
-      <body className={`${orbitron.className} bg-surface-muted text-slate-800 antialiased min-h-screen flex flex-col font-sans`}>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${orbitron.variable}`}>
+      <body className="font-sans bg-surface-muted text-slate-800 antialiased min-h-screen flex flex-col">
         {children}
         <Footer />
       </body>

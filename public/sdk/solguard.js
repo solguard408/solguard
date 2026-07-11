@@ -9,7 +9,7 @@
  *   const report = await sg.runAgent("token-audit", { tokenAddress: "..." }, { paymentMethod: "subscription" });
  */
 export class SolGuard {
-  constructor({ baseUrl = "https://solguard.ai/api", apiKey = null, token = null, timeoutMs = 30000 } = {}) {
+  constructor({ baseUrl = "https://www.solguard.space/api", apiKey = null, token = null, timeoutMs = 30000 } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.apiKey = apiKey;
     this.token = token;

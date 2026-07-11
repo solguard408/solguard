@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import BrandLogo from "./components/BrandLogo";
 import ServiceCard from "./components/ServiceCard";
-import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem } from "./components/X402ComingSoon";
+import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem } from "./components/X402Status";
 import bs58 from "bs58";
 import {
   Shield, ShieldAlert, ShieldCheck, Search, Lock, AlertTriangle, CheckCircle2, XCircle,
@@ -13,8 +13,12 @@ import {
   CircleDollarSign, Flame, Clock, X, Send, Bot, Fingerprint, KeyRound,
 } from "lucide-react";
 import { validateRunInputs, isRunInputValid } from "@/lib/solguard/runValidation";
+import { normalizeRiskScore, buildOnChainVerdict } from "@/lib/solguard/reportBuilder";
+import { isInvalidAiVerdict } from "@/lib/solguard/verdictValidation";
+import { openShareToX } from "@/lib/solguard/shareToX";
 import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
 import { freeCreditButtonLabel } from "@/lib/solguard/credits";
+import { shouldUseX402, runAgentViaX402 } from "@/lib/solguard/x402Run";
 
 // --- icon map (server returns icon name as string)
 const ICONS = { Coins, Lock, Layers, Users, Droplets, FileText, Sparkles, ShieldAlert, TrendingUp, Activity, Globe, Wallet, UserCog, Shield, MessageSquare, Bot, Fingerprint, KeyRound };
@@ -62,12 +66,13 @@ async function api(path, opts = {}) {
 
 // ===================== UI PRIMITIVES =====================
 function ScoreGauge({ score = 0, level = "LOW", size = "lg" }) {
+  const normalized = normalizeRiskScore(score);
   const c = levelColor(level);
   const [display, setDisplay] = useState(0);
   useEffect(() => {
-    let n = 0; const id = setInterval(() => { n += Math.max(1, Math.round((score - n) / 6)); if (n >= score) { n = score; clearInterval(id); } setDisplay(n); }, 30);
+    let n = 0; const id = setInterval(() => { n += Math.max(1, Math.round((normalized - n) / 6)); if (n >= normalized) { n = normalized; clearInterval(id); } setDisplay(n); }, 30);
     return () => clearInterval(id);
-  }, [score]);
+  }, [normalized]);
   const R = 56; const C = 2 * Math.PI * R; const offset = C - (display / 100) * C;
   const dim = size === "sm" ? "w-24 h-24" : "w-36 h-36";
   const fs = size === "sm" ? "text-2xl" : "text-4xl";
@@ -360,7 +365,7 @@ function WhatsNextSection() {
     <section className="relative max-w-7xl mx-auto px-5 pb-16">
       <div className="max-w-3xl">
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">What&apos;s next</h2>
-        <p className="text-sm text-slate-500 mb-5">Upcoming capabilities on the SolGuard roadmap.</p>
+        <p className="text-sm text-slate-500 mb-5">Devnet x402 is live today; mainnet x402 is the next phase.</p>
         <ul className="space-y-3 list-none m-0 p-0">
           <X402RoadmapItem />
         </ul>
@@ -720,7 +725,7 @@ function Explorer({ services, serviceStats, setView }) {
 }
 
 // ===================== AGENT DETAIL & RUNNER =====================
-function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingModeFreeRuns = false }) {
+function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingModeFreeRuns = false, x402Agents = [] }) {
   const [agent, setAgent] = useState(null);
   const [inputs, setInputs] = useState({});
   const [error, setError] = useState("");
@@ -768,7 +773,36 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
     if (validated.error) { setError(validated.error); return; }
     if (testingModeFreeRuns) executeRun("testing");
     else if ((user.credits || 0) > 0) executeRun("credit");
+    else if (shouldUseX402({
+      agentId: agent.id,
+      x402Agents,
+      testingMode: testingModeFreeRuns,
+      credits: user.credits,
+      hasSubscription: !!user.subscription,
+    })) runX402Paid();
     else setPayOpen(true);
+  }
+
+  async function runX402Paid() {
+    setBusy(true);
+    setError("");
+    try {
+      const validated = validateRunInputs(agent.id, inputs);
+      if (validated.error) throw new Error(validated.error);
+      const provider = await ensurePhantomProvider();
+      const data = await runAgentViaX402({
+        agentId: agent.id,
+        inputs: validated.inputs,
+        walletProvider: provider,
+        amountUsdc: agent.price,
+      });
+      setPayOpen(false);
+      onReport(data);
+    } catch (e) {
+      setError(e.message || "Run failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function confirmPayment(choice) {
@@ -870,7 +904,7 @@ function AgentPage({ agentId, user, ensureWallet, onReport, setView, testingMode
                 <div className="text-xs text-slate-500 mt-1">per analysis · USDC on Solana</div>
               </>
             )}
-            <div className="mt-2"><X402InlineTag /></div>
+            <div className="mt-2"><X402InlineTag enabled={x402Agents.includes(agent.id)} /></div>
             <div className="mt-4 pt-4 border-t border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-slate-500">Est. time</span><span className="terminal-text">{agent.estimatedTime}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Free credit</span><span className="terminal-text text-emerald-400">{user?.credits || 0} left</span></div>
@@ -964,13 +998,21 @@ function KeyFindingsTable({ findings }) {
   );
 }
 
+function resolveReportVerdict(r) {
+  const raw = r.verdict || r.summary || "";
+  if (!isInvalidAiVerdict(raw)) return raw;
+  const ev = r.rawEvidence ?? r.evidence ?? {};
+  if (ev.authorityCheck && ev.bundleDetection) return buildOnChainVerdict(ev);
+  return "Automated verdict unavailable — see key findings below for on-chain details.";
+}
+
 function ReportView({ report, setView }) {
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState("overview");
   const [rawOpen, setRawOpen] = useState(false);
   if (!report) return <div className="text-center py-20 text-slate-500">No report.</div>;
   const r = report.result || report;
-  const verdict = r.verdict || r.summary || "";
+  const verdict = resolveReportVerdict(r);
   const c = levelColor(r.riskLevel);
   const isComposite = report.agentId === "solana-token-verification";
   const sub = r.rawEvidence?.subModules || r.evidence?.subModules;
@@ -979,7 +1021,7 @@ function ReportView({ report, setView }) {
   const rawData = r.rawEvidence ?? r.evidence ?? {};
 
   function copy() {
-    const txt = `🔍 SolGuard AI · ${report.agentName || report.agentId}\nRisk: ${r.riskLevel} (${r.riskScore}/100)\n\n${verdict}\n\nsolguard.ai`;
+    const txt = `🔍 SolGuard AI · ${report.agentName || report.agentId}\nRisk: ${r.riskLevel} (${normalizeRiskScore(r.riskScore)}/100)\n\n${verdict}\n\nsolguard.space`;
     navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 1800);
   }
   function dl() {
@@ -1006,13 +1048,14 @@ function ReportView({ report, setView }) {
             <div className="text-xs text-trust-600 terminal-text tracking-widest mb-2">AGENT REPORT</div>
             <h1 className="text-3xl font-bold mb-2 text-slate-900">{report.agentName || report.agentId}</h1>
             <div className="text-sm text-slate-600 mb-3">Input: <span className="terminal-text text-slate-700">{r.input || Object.values(report.inputs || {}).join(", ")}</span></div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button onClick={copy} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}</button>
               <button onClick={dl} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Download className="w-3 h-3" /> JSON</button>
+              <button onClick={() => openShareToX(report)} className="text-xs terminal-text px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:border-trust-300 transition flex items-center gap-1.5 text-slate-700"><Twitter className="w-3 h-3" /> SHARE ON X</button>
             </div>
           </div>
           <div className="flex flex-col items-center">
-            <ScoreGauge score={r.riskScore || 0} level={r.riskLevel || "LOW"} />
+            <ScoreGauge score={normalizeRiskScore(r.riskScore)} level={r.riskLevel || "LOW"} />
             <div className="mt-3"><RiskBadge level={r.riskLevel || "LOW"} /></div>
           </div>
         </div>
@@ -1116,7 +1159,7 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
   async function subscribe(plan) {
     setError("");
     if (!user) { ensureWallet(); return; }
-    if (plan.custom) { setError("Contact sales for Business plan: hello@solguard.ai"); return; }
+    if (plan.custom) { setError("Contact sales for Business plan: hello@solguard.space"); return; }
     setBusy(plan.id);
     try {
       const provider = await ensurePhantomProvider();
@@ -1195,7 +1238,7 @@ function GuideCodeBlock({ code }) {
       >
         <Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}
       </button>
-      <pre className="p-4 pr-24 text-xs sm:text-sm terminal-text text-slate-800 overflow-x-auto leading-relaxed">{code}</pre>
+      <pre className="p-4 pr-24 text-xs sm:text-sm font-mono text-slate-800 overflow-x-auto leading-relaxed guide-code">{code}</pre>
     </div>
   );
 }
@@ -1224,161 +1267,209 @@ function GuideFieldRow({ name, desc }) {
 }
 
 function Guide({ setView }) {
-  const curlExample = `curl -i -X POST "https://solguard.ai/api/agents/solana-token-verification/run" \\
+  const [part, setPart] = useState("website");
+
+  const curlExample = `curl -i -X POST "https://www.solguard.space/api/agents/solana-token-verification/run" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer <JWT>" \\
   -d '{"inputs":{"tokenAddress":"DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"},"paymentMethod":"usdc","paymentSignature":"<tx_signature>"}'`;
 
   const whatsHere = [
-    {
-      path: "/",
-      desc: "The explorer: browse five consolidated security services with pricing, categories, and live 30-day usage stats.",
-    },
-    {
-      path: "/api/services",
-      desc: "Marketplace service catalog (JSON) — five professional verification tiers with primary agent routing.",
-    },
-    {
-      path: "/api/agents",
-      desc: "Full agent catalog (JSON) — all analysis engines for SDK and programmatic access.",
-    },
-    {
-      path: "/api/agents/[id]/run",
-      desc: "One endpoint per agent — POST JSON with inputs and paymentMethod. Returns the structured risk report on success.",
-    },
-    {
-      path: "/api/payment/config",
-      desc: "Returns the USDC mint and destination wallet for browser-side SPL transfers before an agent run.",
-    },
+    { path: "/", desc: "Explorer — browse eight security services with pricing, categories, and live usage stats." },
+    { path: "/api/services", desc: "Marketplace service catalog (JSON) with primary agent routing." },
+    { path: "/api/agents", desc: "Full agent catalog for SDK and programmatic access." },
+    { path: "/api/agents/[id]/run", desc: "Run an agent — POST inputs + paymentMethod, receive a structured risk report." },
+    { path: "/api/payment/config", desc: "USDC mint and destination wallet for mainnet SPL transfers." },
   ];
 
   return (
     <div className="max-w-3xl mx-auto px-5 py-12 sm:py-16">
-      <header className="mb-12">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-3">How it works</h1>
-        <p className="text-sm terminal-text text-slate-500 tracking-wide">
-          Pay-per-use security scans over USDC · Solana mainnet
-        </p>
-        <p className="mt-6 text-slate-600 leading-relaxed">
-          Each SolGuard service is a fixed-price analysis tier — $0.10 USDC per scan ($0.06 with Pro, coming soon).
-          Instead of passwords or email accounts, you authenticate with your wallet: sign a server nonce via{" "}
-          <span className="terminal-text text-slate-800">nacl.sign.detached.verify()</span>, receive a JWT, and pay
-          per run with an on-chain USDC transfer. Agents query Helius RPC for mint authority, slot clustering, holder
-          concentration, and liquidity — then return a weighted risk report with evidence.
+      <header className="mb-8">
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-3">Guide</h1>
+        <p className="text-sm text-slate-500">
+          Using SolGuard on the web and from your terminal.
         </p>
       </header>
 
-      <section className="mb-14">
-        <h2 className="text-xl font-bold text-slate-900 mb-5">What&apos;s here</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {whatsHere.map(({ path, desc }) => (
-            <div key={path} className="p-4 rounded-lg border border-slate-200 bg-white">
-              <div className="terminal-text text-sm font-medium text-slate-900 mb-2">{path}</div>
-              <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-14">
-        <h2 className="text-xl font-bold text-slate-900 mb-6">The analysis flow</h2>
-        <ol className="list-none m-0 p-0">
-          <GuideStep n={1} title="Pick an agent & submit inputs">
-            On the explorer, open an agent, fill its inputs (e.g.{" "}
-            <span className="terminal-text text-slate-800">tokenAddress</span>), and hit Start Analysis. Your wallet
-            must be connected — unauthenticated requests return{" "}
-            <span className="terminal-text text-slate-800">401</span>.
-          </GuideStep>
-          <GuideStep n={2} title="Client sends USDC on-chain">
-            Phantom builds an SPL <span className="terminal-text text-slate-800">transferChecked</span> to the
-            destination ATA (~$0.10 USDC). Alternatively use a free credit or subscription quota via{" "}
-            <span className="terminal-text text-slate-800">paymentMethod: &quot;credit&quot;</span> or{" "}
-            <span className="terminal-text text-slate-800">&quot;subscription&quot;</span>.
-          </GuideStep>
-          <GuideStep n={3} title="Server verifies payment">
-            The backend polls Helius RPC with{" "}
-            <span className="terminal-text text-slate-800">getParsedTransaction</span>, validates USDC credited to
-            the destination ATA, and dedupes the signature in MongoDB. Failed or missing payment returns{" "}
-            <span className="terminal-text text-slate-800">402</span>.
-          </GuideStep>
-          <GuideStep n={4} title="Agent executes on-chain heuristics">
-            <span className="terminal-text text-slate-800">scanEngine</span> decodes the SPL mint account (mint/freeze
-            authority), groups launch signatures by slot for bundle detection, reads holder concentration and DEX pool
-            liquidity. Each agent applies its own weighted scoring formula.
-          </GuideStep>
-          <GuideStep n={5} title="Report is returned">
-            On success the server returns{" "}
-            <span className="terminal-text text-slate-800">200</span> JSON:{" "}
-            <span className="terminal-text text-slate-800">riskScore</span> (0–100),{" "}
-            <span className="terminal-text text-slate-800">riskLevel</span>, summary, evidence trail, and
-            recommendations. The report is persisted to your account at{" "}
-            <span className="terminal-text text-slate-800">/api/reports</span>.
-          </GuideStep>
-        </ol>
-      </section>
-
-      <section className="mb-14">
-        <h2 className="text-xl font-bold text-slate-900 mb-5">Try it yourself</h2>
-        <ol className="space-y-2 text-sm text-slate-600 list-decimal pl-5 mb-6 leading-relaxed">
-          <li>Get USDC in Phantom on Solana mainnet.</li>
-          <li>Connect your wallet (nonce sign → JWT via <span className="terminal-text text-slate-800">/api/auth/verify</span>).</li>
-          <li>Open the explorer, pick Token Audit, fill a mint address, and pay USDC.</li>
-          <li>
-            Or call an endpoint directly — without auth you get a{" "}
-            <span className="terminal-text text-slate-800">401</span>:
-          </li>
-        </ol>
-        <GuideCodeBlock code={curlExample} />
-        <p className="mt-3 text-xs text-slate-500">
-          POST JSON is the canonical call method. Include a valid{" "}
-          <span className="terminal-text">paymentSignature</span> from your USDC transfer when using{" "}
-          <span className="terminal-text">paymentMethod: &quot;usdc&quot;</span>.
-        </p>
-      </section>
-
-      <section className="mb-14">
-        <h2 className="text-xl font-bold text-slate-900 mb-5">Fields in play</h2>
-        <div className="space-y-2">
-          <GuideFieldRow name="Authorization" desc="client → server: JWT from wallet nonce signature auth" />
-          <GuideFieldRow name="paymentMethod" desc='run body: "usdc" | "credit" | "subscription"' />
-          <GuideFieldRow name="paymentSignature" desc="run body: Solana tx signature for the USDC SPL transfer" />
-          <GuideFieldRow name="inputs" desc="run body: agent-specific fields (tokenAddress, walletAddress, url, query)" />
-        </div>
-      </section>
-
-      <section className="mb-14">
-        <div className="text-[10px] terminal-text tracking-widest text-slate-400 mb-3">STACK.VERIFIED</div>
-        <div className="flex flex-wrap gap-2">
-          {["Helius RPC", "MongoDB Atlas", "Solana Mainnet", "USDC pay-per-run"].map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex px-2.5 py-1 rounded-full border border-trust-200 bg-trust-50 text-[10px] sm:text-[11px] terminal-text text-trust-700 tracking-wide"
-            >
-              {tag}
-            </span>
-          ))}
-          <X402Chip />
-        </div>
-      </section>
-
-      <nav className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-8 border-t border-slate-200 text-sm">
+      <nav className="sticky top-0 z-10 flex gap-2 mb-10 p-1 rounded-lg border border-slate-200 bg-white/95 backdrop-blur">
         <button
           type="button"
-          onClick={() => setView("explorer")}
-          className="text-trust-700 hover:text-trust-800 font-medium transition"
+          onClick={() => setPart("website")}
+          className={`flex-1 px-4 py-2.5 rounded-md text-sm font-medium transition ${part === "website" ? "bg-trust-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
         >
-          ← Explorer
+          Part 1 — Website
         </button>
         <button
           type="button"
-          onClick={() => setView("subscriptions")}
-          className="text-trust-700 hover:text-trust-800 font-medium transition sm:text-right"
+          onClick={() => setPart("cli")}
+          className={`flex-1 px-4 py-2.5 rounded-md text-sm font-medium transition flex items-center justify-center gap-2 ${part === "cli" ? "bg-trust-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
         >
-          Subscriptions →
+          Part 2 — CLI
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono">Beta</span>
         </button>
       </nav>
-      <p className="mt-6 text-xs terminal-text text-slate-400 tracking-wide text-center sm:text-left">
-        Pay-per-use verification over x402 (coming soon) · USDC · Solana mainnet
+
+      {part === "website" && (
+        <>
+          <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
+            <h2 className="text-xl font-bold text-slate-900 mb-3">What SolGuard does</h2>
+            <p className="text-sm text-slate-600 leading-relaxed mb-4">
+              SolGuard runs automated security analysis for Solana tokens, wallets, smart contracts, dApp frontends, AI
+              agent configs, and more. Each service is a fixed-price tier — typically $0.10 USDC per scan — returning a
+              weighted risk score, plain-English verdict, key findings, and recommendations.
+            </p>
+            <button
+              type="button"
+              onClick={() => setView("explorer")}
+              className="text-sm text-trust-700 hover:text-trust-800 font-medium"
+            >
+              Browse services in the Explorer →
+            </button>
+          </section>
+
+          <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
+            <h2 className="text-xl font-bold text-slate-900 mb-3">How payment works</h2>
+            <p className="text-sm text-slate-600 leading-relaxed mb-4">
+              <strong className="text-slate-800">Payments today:</strong> Connect your wallet, then pay with free signup
+              credits, a subscription quota, or a <strong>0.10 USDC transfer on Solana mainnet</strong>. That mainnet
+              USDC flow is what real-money transactions use right now.
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed mb-4">
+              <strong className="text-slate-800">x402 gateway:</strong> SolGuard also runs an{" "}
+              <strong>x402 payment gateway live on Solana devnet across all agents</strong> — automatic HTTP-native
+              micropayments in test mode. <strong>Mainnet x402 is not live yet</strong>; when you pay with real USDC on
+              mainnet, you are not using x402.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <X402Chip />
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-slate-900 mb-6">Run flow</h2>
+            <ol className="list-none m-0 p-0">
+              <GuideStep n={1} title="Pick a service & submit inputs">
+                Open a service from the Explorer, fill its inputs (e.g.{" "}
+                <code className="font-mono text-sm text-slate-800">tokenAddress</code>), and run. Your wallet must be
+                connected — unauthenticated requests return <code className="font-mono text-sm">401</code>.
+              </GuideStep>
+              <GuideStep n={2} title="Pay (credits, subscription, or mainnet USDC)">
+                Use free credits, subscription quota, or Phantom sends an SPL{" "}
+                <code className="font-mono text-sm">transferChecked</code> (~$0.10 USDC on mainnet). When out of credits,
+                x402 devnet micropayments may apply if your wallet is on devnet.
+              </GuideStep>
+              <GuideStep n={3} title="Read your report">
+                On success you get <code className="font-mono text-sm">riskScore</code>,{" "}
+                <code className="font-mono text-sm">riskLevel</code>, verdict, key findings, and recommendations.
+                Reports are saved to your account at <code className="font-mono text-sm">/api/reports</code>.
+              </GuideStep>
+              <GuideStep n={4} title="Share on X">
+                From the report view, use <strong>Share on X</strong> to post aggregate results (no vulnerability
+                details) with a link to solguard.space.
+              </GuideStep>
+            </ol>
+          </section>
+
+          <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Try the API</h2>
+            <GuideCodeBlock code={curlExample} />
+            <p className="mt-3 text-xs text-slate-500">
+              Include a valid <code className="font-mono">paymentSignature</code> when using{" "}
+              <code className="font-mono">paymentMethod: &quot;usdc&quot;</code> on mainnet.
+            </p>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-slate-900 mb-5">What&apos;s here</h2>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {whatsHere.map(({ path, desc }) => (
+                <div key={path} className="p-4 rounded-lg border border-slate-200 bg-white">
+                  <div className="font-mono text-sm font-medium text-slate-900 mb-2">{path}</div>
+                  <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 mb-3">STACK.VERIFIED</div>
+            <div className="flex flex-wrap gap-2">
+              {["Helius RPC", "MongoDB Atlas", "Solana Mainnet", "USDC pay-per-run"].map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex px-2.5 py-1 rounded-full border border-trust-200 bg-trust-50 text-[10px] sm:text-[11px] font-mono text-trust-700 tracking-wide"
+                >
+                  {tag}
+                </span>
+              ))}
+              <X402Chip />
+            </div>
+          </section>
+        </>
+      )}
+
+      {part === "cli" && (
+        <>
+          <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <h2 className="text-xl font-bold text-slate-900">SolGuard CLI</h2>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-medium">Beta</span>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed mb-4">
+              Run SolGuard agents from your terminal. Requires Node.js 18+. No separate install step:
+            </p>
+            <GuideCodeBlock code="npx solguard-cli" />
+          </section>
+
+          <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
+            <h3 className="font-bold text-slate-900 mb-3">Free mode</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Uses the SolGuard API with your CLI identity (<code className="font-mono text-sm">cliInstallId</code> in{" "}
+              <code className="font-mono text-sm">~/.solguard/config.json</code>). Includes 2 signup credits — same as
+              the website. Server-side OpenRouter powers AI responses.
+            </p>
+          </section>
+
+          <section className="mb-10 p-6 rounded-xl border border-amber-200 bg-amber-50/50">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <h3 className="font-bold text-slate-900">Premium mode</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono font-medium">Beta</span>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed mb-3">
+              Bring your own OpenAI, Anthropic, or Gemini API key. Runs entirely on your machine — your key is never sent
+              to SolGuard. Available for six services (consultant, token verification, wallet, dApp scan, OpenClaw audit,
+              contract audit).
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              On-chain premium agents need <code className="font-mono text-sm">HELIUS_API_KEY</code> in your environment.
+              Save reports locally as <code className="font-mono text-sm">solguard-report-*.json</code> when prompted.
+            </p>
+          </section>
+
+          <section className="mb-10">
+            <h3 className="font-bold text-slate-900 mb-3">Local development</h3>
+            <GuideCodeBlock code={`# Terminal 1 — start API
+npm run dev
+
+# Terminal 2 — CLI auto-detects localhost:3000
+npx solguard-cli
+
+# Or explicit:
+SOLGUARD_API=http://localhost:3000/api npx solguard-cli`} />
+          </section>
+        </>
+      )}
+
+      <nav className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-8 border-t border-slate-200 text-sm">
+        <button type="button" onClick={() => setView("explorer")} className="text-trust-700 hover:text-trust-800 font-medium transition">
+          ← Explorer
+        </button>
+        <button type="button" onClick={() => setView("api")} className="text-trust-700 hover:text-trust-800 font-medium transition sm:text-right">
+          REST API →
+        </button>
+      </nav>
+      <p className="mt-6 text-xs text-slate-400 text-center sm:text-left leading-relaxed">
+        Pay-per-use verification · USDC on Solana mainnet (live today) · x402 gateway live on devnet · mainnet x402 coming soon
       </p>
     </div>
   );
@@ -1455,7 +1546,7 @@ function Watchlist({ setView }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {it.state?.riskLevel ? <div className={`px-2.5 py-1 rounded bg-slate-900 border ${c.border} ${c.text} text-xs terminal-text`}>{lvl} · {it.state.riskScore}</div> : <div className="px-2.5 py-1 rounded border border-slate-200 text-slate-500 text-xs">SCANNING…</div>}
+                  {it.state?.riskLevel ? <div className={`px-2.5 py-1 rounded bg-slate-900 border ${c.border} ${c.text} text-xs terminal-text`}>{lvl} · {normalizeRiskScore(it.state.riskScore)}</div> : <div className="px-2.5 py-1 rounded border border-slate-200 text-slate-500 text-xs">SCANNING…</div>}
                   <button onClick={() => setView(`agent:solana-token-verification`)} className="p-2 text-slate-500 hover:text-trust-600" title="Re-audit"><Search className="w-3.5 h-3.5" /></button>
                   <button onClick={() => remove(it.tokenAddress)} className="p-2 text-slate-500 hover:text-rose-400"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
@@ -1576,12 +1667,12 @@ function ApiPage() {
         <div className="space-y-5">
           <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Base URL</h3>
-            <pre className="text-sm terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800">https://solguard.ai/api</pre>
+            <pre className="text-sm font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800">https://www.solguard.space/api</pre>
           </div>
           <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Authentication</h3>
             <p className="text-sm text-slate-600 mb-3">Two methods. API keys are recommended for server-side use.</p>
-            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`# Via API key (recommended for backends — subscription-backed)
+            <pre className="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`# Via API key (recommended for backends — subscription-backed)
 X-API-Key: sg_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # Via JWT (browser / wallet-auth users)
@@ -1591,8 +1682,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
             <h3 className="font-bold mb-3">Payment Methods (when running an agent)</h3>
             <ul className="space-y-1.5 text-sm">
               <li><code className="text-trust-700">credit</code> · use one of your 2 non-renewable free credits</li>
-              <li><code className="text-trust-700">subscription</code> · debit your active plan's quota (Starter 100 / Pro 1000 / Business unlimited)</li>
-              <li><code className="text-trust-700">usdc</code> · provide <code>paymentSignature</code> of a confirmed 0.10 USDC transfer to our verification wallet</li>
+              <li><code className="text-trust-700">subscription</code> · debit your active plan&apos;s quota (Starter 100 / Pro 1000 / Business unlimited)</li>
+              <li><code className="text-trust-700">usdc</code> · mainnet only · provide <code>paymentSignature</code> of a confirmed 0.10 USDC transfer (real-money flow today)</li>
+              <li><code className="text-trust-700">x402</code> · devnet only · send <code>X-PAYMENT</code> header after 402 challenge (see <code>/api/x402/devnet/preflight</code>). Not for mainnet USDC.</li>
             </ul>
           </div>
           <div className="p-5 rounded-xl border border-slate-200 bg-white">
@@ -1601,7 +1693,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
               <li>Per agent per user: <code className="text-trust-700">10 req/min</code> (free) · <code className="text-trust-700">60 req/min</code> (subscribers)</li>
               <li>Global per user: <code className="text-trust-700">60 req/min</code> (free) · <code className="text-trust-700">300 req/min</code> (subscribers)</li>
               <li>Public reads per IP: <code className="text-trust-700">120 req/min</code></li>
-              <li>Auth endpoints per IP: <code className="text-trust-700">20 req/min</code></li>
+              <li>Auth endpoints per IP (wallet + CLI): <code className="text-trust-700">20 req/min</code></li>
             </ul>
             <p className="text-xs text-slate-500 mt-3">Exceeding limits returns <code>429</code> with a retry-after seconds hint in the body.</p>
           </div>
@@ -1621,7 +1713,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
 
           <div className="mt-6 p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Example: Run Token Audit</h3>
-            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`curl -X POST https://solguard.ai/api/agents/token-audit/run \\
+            <pre className="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`curl -X POST https://www.solguard.space/api/agents/token-audit/run \\
   -H "X-API-Key: sg_live_xxxxx" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -1632,7 +1724,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
 
           <div className="p-5 rounded-xl border border-slate-200 bg-white">
             <h3 className="font-bold mb-3">Sample Response</h3>
-            <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`{
+            <pre className="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`{
   "reportId": "uuid…",
   "agentId": "token-audit",
   "agentName": "Token Audit",
@@ -1656,7 +1748,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`}</pre>
                 <h3 className="font-bold flex items-center gap-2"><span className="text-amber-400">●</span> JavaScript SDK</h3>
                 <a href="/sdk/solguard.js" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
               </div>
-              <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`import { SolGuard } from "./solguard.js";
+              <pre className="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`import { SolGuard } from "./solguard.js";
 
 const sg = new SolGuard({ apiKey: "sg_live_…" });
 const r = await sg.runAgent("token-audit", {
@@ -1669,7 +1761,7 @@ console.log(r.summary, r.riskScore);`}</pre>
                 <h3 className="font-bold flex items-center gap-2"><span className="text-emerald-400">●</span> Python SDK</h3>
                 <a href="/sdk/solguard.py" download className="text-xs terminal-text px-3 py-1.5 rounded-md bg-trust-600 text-white font-bold hover:bg-trust-500 transition flex items-center gap-1.5"><Download className="w-3 h-3" /> DOWNLOAD</a>
               </div>
-              <pre className="text-xs terminal-text text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`from solguard import SolGuard
+              <pre className="text-xs font-mono text-slate-200 bg-slate-900 p-3 rounded border border-slate-800 overflow-auto">{`from solguard import SolGuard
 
 sg = SolGuard(api_key="sg_live_…")
 r = sg.run_agent(
@@ -1743,6 +1835,7 @@ export default function App() {
   const [exploits, setExploits] = useState([]);
   const [overallStats, setOverallStats] = useState(null);
   const [testingModeFreeRuns, setTestingModeFreeRuns] = useState(false);
+  const [x402Agents, setX402Agents] = useState([]);
   const [report, setReport] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [walletError, setWalletError] = useState("");
@@ -1767,7 +1860,10 @@ export default function App() {
     }
     if (e.ok) setExploits(e.data.exploits);
     if (s.ok) setOverallStats(s.data);
-    if (cfg.ok) setTestingModeFreeRuns(!!cfg.data.testingModeFreeRuns);
+    if (cfg.ok) {
+      setTestingModeFreeRuns(!!cfg.data.testingModeFreeRuns);
+      setX402Agents(cfg.data.x402Agents || []);
+    }
   }
   async function refreshMe() {
     const tok = typeof window !== "undefined" ? localStorage.getItem("sg_token") : null;
@@ -1847,7 +1943,7 @@ export default function App() {
 
       {topView === "home" && <Home services={services} serviceStats={serviceStats} setView={setView} overallStats={overallStats} exploits={exploits} />}
       {topView === "explorer" && <Explorer services={services} serviceStats={serviceStats} setView={setView} />}
-      {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} testingModeFreeRuns={testingModeFreeRuns} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
+      {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} testingModeFreeRuns={testingModeFreeRuns} x402Agents={x402Agents} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
       {topView === "report" && <ReportView report={report} setView={setView} />}
       {topView === "subscriptions" && <Subscriptions user={user} ensureWallet={connectWallet} onSubscribed={() => { refreshMe(); setView("dashboard"); }} />}
       {topView === "guide" && <Guide setView={setView} />}

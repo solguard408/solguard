@@ -26,7 +26,7 @@ class SolGuardError(Exception):
 
 class SolGuard:
     def __init__(self,
-                 base_url: str = "https://solguard.ai/api",
+                 base_url: str = "https://www.solguard.space/api",
                  api_key: Optional[str] = None,
                  token: Optional[str] = None,
                  timeout: float = 30.0):

@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { isValidSolanaAddress } from "@/lib/solguard/scanEngine";
 import { getDb } from "@/lib/solguard/mongo";
 import { jsonDbError } from "@/lib/solguard/dbRoute";
-import { signToken, verifySolanaSignature, getAuthUser } from "@/lib/solguard/auth";
+import { signToken, verifySolanaSignature, getAuthUser, isValidCliInstallId } from "@/lib/solguard/auth";
 import { startWatcher } from "@/lib/solguard/watcher";
 import { listAgents, getAgent, runAgent } from "@/lib/solguard/agents";
 import { listServices, getAllRollupAgentIds } from "@/lib/solguard/services";
@@ -15,11 +15,23 @@ import { verifyUsdcPayment, getPaymentConfig } from "@/lib/solguard/payment";
 import { fetchLatestBlockhash, tokenAccountExists, sendSignedTransaction } from "@/lib/solguard/rpcProxy";
 import { getExploits } from "@/lib/solguard/exploitFeed";
 import { runTokenScan } from "@/lib/solguard/scanEngine";
+import { normalizeRiskScore } from "@/lib/solguard/reportBuilder";
 import { checkAgentRunLimit, checkUserGlobalLimit, checkIpAuthLimit, checkIpPublicLimit } from "@/lib/solguard/rateLimit";
 import { sanitizeRunInputs } from "@/lib/solguard/runValidation";
 import { initializeDatabase } from "@/lib/solguard/initDb";
 import { isTestingModeFreeRuns } from "@/lib/solguard/testingMode";
 import { SIGNUP_FREE_CREDITS } from "@/lib/solguard/credits";
+import {
+  isX402Agent,
+  x402EnabledAgents,
+  X402_NETWORK,
+  createPaymentRequired as x402CreatePaymentRequired,
+  buildRequirements as x402BuildRequirements,
+  decodePaymentHeader as x402DecodePaymentHeader,
+  verifyPayment as x402VerifyPayment,
+  settlePayment as x402SettlePayment,
+  checkDevnetPaymentReadiness,
+} from "@/lib/solguard/x402Server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +49,7 @@ const SUBSCRIPTION_PLANS = {
   business:{ id: "business",name: "Business",priceUsdc: 0, quota: -1,    days: 30, custom: true },
 };
 
-function json(data, status = 200) { return NextResponse.json(data, { status }); }
+function json(data, status = 200, headers) { return NextResponse.json(data, { status, headers }); }
 function authMessage(nonce) { return `Sign this message to authenticate with SolGuard AI.\n\nNonce: ${nonce}`; }
 
 async function requireAuth(request) {
@@ -65,11 +77,30 @@ async function handleRouteInner(request, segments) {
   if (method === "GET" && path === "/config") {
     const rl = checkIpPublicLimit({ ip });
     if (!rl.ok) return json({ error: "Rate limit" }, 429);
-    return json({ testingModeFreeRuns: isTestingModeFreeRuns() });
+    return json({
+      testingModeFreeRuns: isTestingModeFreeRuns(),
+      x402Agents: x402EnabledAgents(),
+      x402Network: X402_NETWORK,
+    });
   }
 
   // ---------- PAYMENT CONFIG ----------
   if (method === "GET" && path === "/payment/config") return json(getPaymentConfig());
+
+  // x402 devnet preflight (server-side devnet RPC; auth required)
+  if (method === "GET" && path === "/x402/devnet/preflight") {
+    const a = await requireAuth(request);
+    if (!a) return json({ error: "Unauthorized" }, 401);
+    if (!x402EnabledAgents().length) return json({ error: "x402 not enabled" }, 404);
+    const url = new URL(request.url);
+    const owner = url.searchParams.get("owner")?.trim() || a.user.walletAddress;
+    const amountUsdc = Number(url.searchParams.get("amount") || "0.1");
+    try {
+      return json(await checkDevnetPaymentReadiness(owner, amountUsdc));
+    } catch (e) {
+      return json({ ready: false, error: e.message || "Preflight check failed" }, 502);
+    }
+  }
 
   // ---------- RPC PROXY (Helius server-side; auth required) ----------
   if (method === "GET" && path === "/rpc/blockhash") {
@@ -149,12 +180,44 @@ async function handleRouteInner(request, segments) {
     const token = signToken({ userId: user.id, walletAddress });
     return json({ token, user: { id: user.id, walletAddress: user.walletAddress, credits: user.credits, plan: user.plan } });
   }
+  if (method === "POST" && path === "/auth/cli") {
+    const rl = checkIpAuthLimit({ ip });
+    if (!rl.ok) return json({ error: "Too many auth requests. Retry shortly." }, 429);
+    const body = await request.json().catch(() => ({}));
+    const cliInstallId = body?.cliInstallId?.trim();
+    if (!isValidCliInstallId(cliInstallId)) return json({ error: "cliInstallId must be a valid UUID" }, 400);
+
+    let user = await db.collection("users").findOne({ cliInstallId });
+    if (!user) {
+      user = {
+        id: uuidv4(),
+        cliInstallId,
+        credits: SIGNUP_FREE_CREDITS,
+        creditsGranted: SIGNUP_FREE_CREDITS,
+        plan: "FREE",
+        createdAt: new Date(),
+      };
+      await db.collection("users").insertOne(user);
+    }
+    const token = signToken({ userId: user.id, cliInstallId });
+    return json({
+      token,
+      user: { id: user.id, cliInstallId: user.cliInstallId, credits: user.credits, plan: user.plan },
+    });
+  }
   if (method === "GET" && path === "/me") {
     const a = await requireAuth(request);
     if (!a) return json({ error: "Unauthorized" }, 401);
     const u = a.user;
     const sub = await activeSubscription(db, u.id);
-    return json({ id: u.id, walletAddress: u.walletAddress, credits: u.credits, plan: u.plan, subscription: sub ? { plan: sub.plan, remaining: sub.remaining, quota: sub.quota, expiresAt: sub.expiresAt } : null });
+    return json({
+      id: u.id,
+      walletAddress: u.walletAddress ?? null,
+      cliInstallId: u.cliInstallId ?? null,
+      credits: u.credits,
+      plan: u.plan,
+      subscription: sub ? { plan: sub.plan, remaining: sub.remaining, quota: sub.quota, expiresAt: sub.expiresAt } : null,
+    });
   }
 
   // ---------- AGENTS ----------
@@ -170,7 +233,7 @@ async function handleRouteInner(request, segments) {
     if (!rl.ok) return json({ error: "Rate limit" }, 429);
     const detail = getServiceDetail(serviceId);
     if (!detail) return json({ error: "Service not found" }, 404);
-    const origin = request.headers.get("origin") || request.headers.get("x-forwarded-host") || "https://solguard.ai";
+    const origin = request.headers.get("origin") || request.headers.get("x-forwarded-host") || "https://www.solguard.space";
     const base = origin.startsWith("http") ? origin : `https://${origin}`;
     return json({ ...detail, curlExample: buildCurlExample(serviceId, base) });
   }
@@ -238,8 +301,14 @@ async function handleRouteInner(request, segments) {
     if (san.error) return json({ error: san.error }, 400);
     const cleanInputs = san.inputs;
 
-    // Payment resolution
+    // Payment resolution.
+    // Bypass order (testing mode, then credits, then subscription) is preserved
+    // BEFORE any x402/usdc paywall so free runs never hit a payment challenge.
     let billing = { method: paymentMethod };
+    // Deferred x402 settlement: only settle AFTER the agent runs successfully so a
+    // failed run never charges the payer. Populated only on the x402 path.
+    let x402Pending = null;
+    const xPaymentHeader = request.headers.get("x-payment") || request.headers.get("payment-signature");
     if (isTestingModeFreeRuns()) {
       console.log(`[TESTING MODE] Free run granted, no payment required — wallet: ${user.walletAddress}, agent: ${id}`);
       billing = { method: "testing", testingMode: true };
@@ -255,6 +324,37 @@ async function handleRouteInner(request, segments) {
       const sub = await activeSubscription(db, user.id);
       if (!sub) return json({ error: "No active subscription" }, 402);
       billing.subscriptionId = sub.id;
+    } else if (isX402Agent(id) && (paymentMethod === "x402" || xPaymentHeader)) {
+      // --- x402 devnet path (POC, additive; only for flagged agents) ---
+      const resourceUrl = new URL(request.url).toString();
+      try {
+        if (!xPaymentHeader) {
+          // No payment yet: challenge with 402 + payment requirements.
+          const { header, body } = await x402CreatePaymentRequired({
+            amountUsdc: agent.price,
+            resourceUrl,
+            description: `SolGuard ${agent.name}`,
+          });
+          return json(body, 402, { "PAYMENT-REQUIRED": header });
+        }
+        let paymentPayload;
+        try {
+          paymentPayload = x402DecodePaymentHeader(xPaymentHeader);
+        } catch {
+          return json({ error: "Malformed X-PAYMENT header" }, 400);
+        }
+        // Verify against server-built requirements (never trust client-echoed values).
+        const requirements = await x402BuildRequirements({ amountUsdc: agent.price });
+        const v = await x402VerifyPayment(paymentPayload, requirements);
+        if (!v?.isValid) {
+          return json({ error: `Payment invalid: ${v?.invalidReason || "verification failed"}` }, 402);
+        }
+        billing = { method: "x402", network: X402_NETWORK };
+        x402Pending = { paymentPayload, requirements };
+      } catch (e) {
+        console.error("[x402] payment handling error:", e?.message || e);
+        return json({ error: "x402 payment processing failed" }, 502);
+      }
     } else if (paymentMethod === "usdc") {
       const v = await verifyUsdcPayment({ signature: paymentSignature, amountUsdc: agent.price, payerAddress: user.walletAddress });
       if (!v.ok) return json({ error: v.error }, 402);
@@ -270,6 +370,7 @@ async function handleRouteInner(request, segments) {
       if (paymentMethod === "credit" && !isTestingModeFreeRuns()) {
         await db.collection("users").updateOne({ id: user.id }, { $inc: { credits: 1 } });
       }
+      // x402: never settled before this point, so a failed run simply isn't charged.
       return json({ error: exec.error }, 400);
     }
 
@@ -277,6 +378,21 @@ async function handleRouteInner(request, segments) {
     if (!isTestingModeFreeRuns()) {
       if (paymentMethod === "subscription") {
         await db.collection("subscriptions").updateOne({ id: billing.subscriptionId, quota: { $ne: -1 } }, { $inc: { remaining: -1 } });
+      }
+    }
+
+    // x402: settle on-chain only now that the run succeeded.
+    let x402ResponseHeader = null;
+    if (x402Pending) {
+      try {
+        const settle = await x402SettlePayment(x402Pending.paymentPayload, x402Pending.requirements);
+        billing.transaction = settle?.transaction || null;
+        billing.settled = !!settle?.success;
+        if (settle) x402ResponseHeader = Buffer.from(JSON.stringify(settle)).toString("base64");
+      } catch (e) {
+        console.error("[x402] settle failed after successful run:", e?.message || e);
+        billing.settled = false;
+        billing.settleError = e?.message || String(e);
       }
     }
 
@@ -288,7 +404,11 @@ async function handleRouteInner(request, segments) {
     };
     await db.collection("reports").insertOne(report);
 
-    return json({ reportId, agentId: id, agentName: agent.name, ...exec.result, inputs, createdAt: report.createdAt });
+    return json(
+      { reportId, agentId: id, agentName: agent.name, ...exec.result, inputs, createdAt: report.createdAt },
+      200,
+      x402ResponseHeader ? { "PAYMENT-RESPONSE": x402ResponseHeader } : undefined
+    );
   }
 
   // ---------- REPORTS ----------
@@ -344,7 +464,7 @@ async function handleRouteInner(request, segments) {
     if (!existing) {
       try {
         const scan = await runTokenScan(tokenAddress);
-        await db.collection("watch_state").updateOne({ tokenAddress }, { $set: { tokenAddress, riskLevel: scan.riskLevel, riskScore: scan.riskScore, metadata: scan.metadata, updatedAt: new Date() } }, { upsert: true });
+        await db.collection("watch_state").updateOne({ tokenAddress }, { $set: { tokenAddress, riskLevel: scan.riskLevel, riskScore: normalizeRiskScore(scan.riskScore), metadata: scan.metadata, updatedAt: new Date() } }, { upsert: true });
       } catch {}
     }
     return json({ ok: true });

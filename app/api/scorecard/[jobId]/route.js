@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { getDb } from "@/lib/solguard/mongo";
 import { jsonDbError } from "@/lib/solguard/dbRoute";
 import { loadBrandFont, loadLogoBase64, BRAND_FONT_NAME } from "@/lib/solguard/brandAssets";
+import { normalizeRiskScore } from "@/lib/solguard/reportBuilder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ async function renderScorecard(request, { params }) {
   const symbol = r.metadata?.symbol || "TOKEN";
   const name = (r.metadata?.name || "Unknown").slice(0, 28);
   const tokenAddr = r.tokenAddress;
-  const score = r.riskScore;
+  const score = normalizeRiskScore(r.riskScore);
   const level = r.riskLevel;
   const auth = r.authorityCheck;
   const bundle = r.bundleDetection;
@@ -98,7 +99,7 @@ async function renderScorecard(request, { params }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 14, color: "#94A3B8", letterSpacing: 2 }}>
-        <div style={{ display: "flex" }}>SCAN ANY SOLANA TOKEN FREE - solguard.ai</div>
+        <div style={{ display: "flex" }}>SCAN ANY SOLANA TOKEN FREE - solguard.space</div>
         <div style={{ display: "flex" }}>{new Date(r.scannedAt).toISOString().slice(0, 16).replace("T", " ")}</div>
       </div>
     </div>,

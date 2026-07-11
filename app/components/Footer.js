@@ -1,6 +1,9 @@
 "use client";
 
-import { X402FooterTagline } from "./X402ComingSoon";
+import { X402FooterTagline } from "./X402Status";
+
+const GITHUB_URL = "https://github.com/solguard408";
+const X_URL = "https://x.com/SolGuard_";
 
 function GitHubIcon({ className }) {
   return (
@@ -25,49 +28,55 @@ const FOOTER_LINKS = [
   { label: "Partner Programme", href: "#" },
 ];
 
+function SocialLink({ href, label, children }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
+      className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-white transition-colors"
+    >
+      {children}
+    </a>
+  );
+}
+
 export default function Footer() {
   return (
-    <footer className="mt-auto bg-white border-t border-slate-100">
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 py-8 sm:py-10 space-y-10">
-        {/* Top row */}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500 leading-relaxed">
-            <X402FooterTagline />
-          </p>
+    <footer className="mt-auto bg-white border-t border-slate-200">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 py-10 sm:py-12">
+        {/* Tagline — full width, readable */}
+        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-3xl">
+          <X402FooterTagline />
+        </p>
+
+        {/* Links + social — aligned row, icons never wrap with text */}
+        <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <nav
-            className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600"
-            aria-label="Footer"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600"
+            aria-label="Footer legal"
           >
             {FOOTER_LINKS.map(({ label, href }) => (
-              <a key={label} href={href} className="hover:text-slate-900 transition-colors">
+              <a key={label} href={href} className="hover:text-slate-900 transition-colors whitespace-nowrap">
                 {label}
               </a>
             ))}
-            <a
-              href="#"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="GitHub"
-              className="text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              <GitHubIcon className="w-5 h-5" />
-            </a>
-            <a
-              href="#"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="X"
-              className="text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              <XIcon className="w-[18px] h-[18px]" />
-            </a>
           </nav>
+
+          <div className="flex items-center gap-2 shrink-0" aria-label="Social links">
+            <SocialLink href={GITHUB_URL} label="SolGuard on GitHub">
+              <GitHubIcon className="w-[18px] h-[18px]" />
+            </SocialLink>
+            <SocialLink href={X_URL} label="SolGuard on X">
+              <XIcon className="w-[16px] h-[16px]" />
+            </SocialLink>
+          </div>
         </div>
 
-        {/* Bottom row */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-h-[1px] sm:min-h-0" aria-hidden />
-          <p className="text-sm text-slate-500 sm:text-right">
+        {/* Copyright */}
+        <div className="mt-8 pt-6 border-t border-slate-100">
+          <p className="text-xs sm:text-sm text-slate-400">
             © 2026 SolGuard AI. All rights reserved.
           </p>
         </div>

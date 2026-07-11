@@ -1,0 +1,37 @@
+{
+  "name": "solguard-cli",
+  "version": "0.1.0",
+  "description": "Run SolGuard security agents from your terminal — free credits via SolGuard API or premium local BYOK",
+  "type": "module",
+  "bin": {
+    "solguard-cli": "./bin/solguard-cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepublishOnly": "node scripts/bundle-lib.mjs"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "@solana/web3.js": "^1.98.4",
+    "openai": "^6.45.0"
+  },
+  "keywords": [
+    "solguard",
+    "solana",
+    "security",
+    "cli",
+    "audit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solguard/solguard"
+  }
+}
