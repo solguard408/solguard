@@ -52,7 +52,7 @@ solguard/
 │   └── sdk/                      # Public SDK static files
 │       ├── solguard.js           # JavaScript/Node.js browser SDK
 │       └── solguard.py           # Python 3 SDK (using requests)
-├── vercel.json                   # Vercel cron interval definitions (every 3 minutes)
+├── vercel.json                   # Vercel cron (once daily — Hobby-plan compatible)
 ├── package.json                  # Script targets & dependency manifest
 ├── tailwind.config.js            # Design system themes & utility classes
 ├── scripts/                      # Node QA scripts (rate limits, payments, services, holder regression)
@@ -178,12 +178,13 @@ To solve this, SolGuard AI splits its background loops depending on the runtime 
        "crons": [
          {
            "path": "/api/cron/watcher",
-           "schedule": "*/3 * * * *"
+           "schedule": "0 0 * * *"
          }
        ]
      }
      ```
-   * Every 3 minutes, Vercel triggers a secure `GET` request to `/api/cron/watcher`.
+   * Once per day (midnight UTC), Vercel triggers a secure `GET` request to `/api/cron/watcher`.
+   * **Hobby plan limit:** Vercel Hobby only allows crons once per day. More frequent schedules (e.g. `*/3 * * * *`) fail deployment. Upgrade to Pro for per-minute crons.
 3. **Cron Security**:
    * The endpoint `/api/cron/watcher/route.js` validates that the incoming request contains an `Authorization: Bearer ${process.env.CRON_SECRET}` header (automatically injected by Vercel's scheduler).
    * Once validated, it triggers `initializeDatabase()` and runs a single `tick()` of the watchlist scanner.
@@ -300,3 +301,4 @@ Before pushing to production at **https://www.solguard.space**:
 4. **x402:** Devnet-only in this phase. `X402_NETWORK` must not point at mainnet. Real-money flows use mainnet USDC via `payment.js`.
 5. **CLI:** Do not `npm publish` until manual review. Default API URL is `https://www.solguard.space/api`.
 6. **Rate limits:** `/api/auth/cli` and wallet auth share **20 req/min per IP** (`checkIpAuthLimit`).
+7. **Vercel Hobby cron:** `vercel.json` must use a once-daily schedule (e.g. `0 0 * * *`). Schedules more frequent than once/day fail Hobby deployments.

@@ -1521,7 +1521,7 @@ function Watchlist({ setView }) {
   return (
     <div className="max-w-5xl mx-auto px-5 py-10">
       <div className="flex items-center gap-2 mb-2"><Bell className="w-5 h-5 text-trust-600" /><h1 className="text-3xl font-bold text-slate-900">Watchlist</h1></div>
-      <p className="text-slate-600 mb-6">Tokens are re-scanned every 3 minutes. Alerts fire on risk level changes.</p>
+      <p className="text-slate-600 mb-6">Tokens are re-scanned on a daily schedule. Alerts fire on risk level changes.</p>
       <div className="flex gap-2 mb-6">
         <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Token mint address"
           className="flex-1 bg-white border border-slate-200 rounded-md px-4 py-3 terminal-text text-sm outline-none focus:border-trust-500" />
@@ -1644,7 +1644,7 @@ function ApiPage() {
     { method: "GET", path: "/api/me", desc: "Current authenticated user with credits + subscription.", auth: true },
     { method: "POST", path: "/api/auth/nonce", desc: "Begin wallet-signed auth flow.", auth: false },
     { method: "POST", path: "/api/auth/verify", desc: "Verify Solana signature, returns JWT.", auth: false },
-    { method: "GET", path: "/api/watchlist", desc: "Your monitored tokens (auto re-scan every 3 min).", auth: true },
+    { method: "GET", path: "/api/watchlist", desc: "Your monitored tokens (auto re-scan on schedule).", auth: true },
     { method: "POST", path: "/api/watchlist", desc: "Add a token to your watchlist.", auth: true },
     { method: "GET", path: "/api/alerts/stream", desc: "Server-Sent Events for live alerts. Auth via ?token=JWT.", auth: true },
   ];
