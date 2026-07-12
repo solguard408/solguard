@@ -83,6 +83,8 @@ memory/test_credentials.md
 test_result.md
 scripts/*-output.json
 scripts/qa-report-output.json
+scripts/qa-screenshots/
+packages/solguard-cli/solguard-report-*.json
 
 # Mobile development
 android-sdk/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node

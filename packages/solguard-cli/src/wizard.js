@@ -16,6 +16,7 @@ import {
   localPremiumRequiresHelius,
 } from "./premium.js";
 import { listLocalServices } from "./localCatalog.js";
+import { redactSecrets } from "./redact.js";
 
 function isCancel(v) {
   if (p.isCancel(v)) {
@@ -167,7 +168,7 @@ export async function runWizard() {
       const result = await runAgentLocalPremium(agentId, inputs, { provider: providerId, apiKey });
       if (result?.error) {
         s.stop("Failed");
-        p.log.error(result.error);
+        p.log.error(redactSecrets(result.error));
         process.exit(1);
       }
       report = { agentId, agentName: service.name, result };

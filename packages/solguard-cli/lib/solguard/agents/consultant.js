@@ -4,9 +4,14 @@ import { buildConsultantMessages, parseConsultantResponse } from "../llm/prompts
 const DEFAULT_DATA_SOURCE = ["OpenRouter AI"];
 
 function logConsultantError(e, extra = {}, model = "unknown") {
+  const message = String(e?.message || "")
+    .replace(/sk-[a-zA-Z0-9_-]{10,}/g, "[REDACTED]")
+    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, "[REDACTED]")
+    .replace(/AIza[a-zA-Z0-9_-]{20,}/g, "[REDACTED]")
+    .replace(/Bearer\s+[a-zA-Z0-9._-]+/gi, "Bearer [REDACTED]");
   console.error("[LLM] AI consultant failed:", {
     status: e?.status ?? e?.code ?? "unknown",
-    message: e?.message,
+    message,
     model,
     ...extra,
   });

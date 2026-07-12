@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import BrandLogo from "./components/BrandLogo";
 import ServiceCard from "./components/ServiceCard";
-import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem } from "./components/X402Status";
+import { X402HeroPill, X402InlineTag, X402Chip, X402RoadmapItem, X402FooterTagline } from "./components/X402Status";
 import bs58 from "bs58";
 import {
   Shield, ShieldAlert, ShieldCheck, Search, Lock, AlertTriangle, CheckCircle2, XCircle,
   ArrowRight, Sparkles, Copy, ExternalLink, Loader2, Layers, Droplets, Wallet, LogOut, Bell,
   Star, Trash2, Key, Plus, Twitter, Download, Coins, Users, FileText, TrendingUp, Activity,
   Globe, MessageSquare, UserCog, ChevronRight, Filter, Zap, Book, Code2, CreditCard, BarChart3,
-  CircleDollarSign, Flame, Clock, X, Send, Bot, Fingerprint, KeyRound,
+  CircleDollarSign, Flame, Clock, X, Send, Bot, Fingerprint, KeyRound, Terminal,
 } from "lucide-react";
 import { validateRunInputs, isRunInputValid } from "@/lib/solguard/runValidation";
 import { normalizeRiskScore, buildOnChainVerdict } from "@/lib/solguard/reportBuilder";
@@ -18,6 +18,7 @@ import { isInvalidAiVerdict } from "@/lib/solguard/verdictValidation";
 import { openShareToX } from "@/lib/solguard/shareToX";
 import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
 import { freeCreditButtonLabel } from "@/lib/solguard/credits";
+import { SOLGUARD_CLI_NPX, SOLGUARD_CLI_PACKAGE } from "@/lib/solguard/cliPackage";
 import { shouldUseX402, runAgentViaX402 } from "@/lib/solguard/x402Run";
 
 // --- icon map (server returns icon name as string)
@@ -365,7 +366,10 @@ function WhatsNextSection() {
     <section className="relative max-w-7xl mx-auto px-5 pb-16">
       <div className="max-w-3xl">
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">What&apos;s next</h2>
-        <p className="text-sm text-slate-500 mb-5">Devnet x402 is live today; mainnet x402 is the next phase.</p>
+        <p className="text-sm text-slate-500 mb-5">
+          x402 payment gateway — live on Solana devnet across all agents · mainnet coming soon. Real-money payments today
+          use credits, subscription, or USDC transfer.
+        </p>
         <ul className="space-y-3 list-none m-0 p-0">
           <X402RoadmapItem />
         </ul>
@@ -622,6 +626,8 @@ function Home({ services, serviceStats, setView, overallStats, exploits }) {
           ))}
         </div>
       </section>
+
+      <CliCalloutSection setView={setView} />
 
       {/* Exploit Watch teaser */}
       {exploits && exploits.length > 0 && (
@@ -1222,24 +1228,76 @@ function Subscriptions({ user, ensureWallet, onSubscribed }) {
 }
 
 // ===================== GUIDE =====================
-function GuideCodeBlock({ code }) {
+function GuideCodeBlock({ code, variant = "light" }) {
   const [copied, setCopied] = useState(false);
   function copy() {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }
+  const isTerminal = variant === "terminal";
   return (
-    <div className="relative rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+    <div
+      className={`relative rounded-lg border overflow-hidden ${
+        isTerminal ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50"
+      }`}
+    >
       <button
         type="button"
         onClick={copy}
-        className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded border border-slate-200 bg-white text-[11px] terminal-text text-slate-600 hover:border-trust-300 hover:text-trust-700 transition"
+        className={`absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] terminal-text transition ${
+          isTerminal
+            ? "border-slate-600 bg-slate-800 text-slate-300 hover:border-trust-400 hover:text-trust-300"
+            : "border-slate-200 bg-white text-slate-600 hover:border-trust-300 hover:text-trust-700"
+        }`}
       >
         <Copy className="w-3 h-3" /> {copied ? "COPIED" : "COPY"}
       </button>
-      <pre className="p-4 pr-24 text-xs sm:text-sm font-mono text-slate-800 overflow-x-auto leading-relaxed guide-code">{code}</pre>
+      <pre
+        className={`p-4 pr-24 text-xs sm:text-sm font-mono overflow-x-auto leading-relaxed guide-code ${
+          isTerminal ? "text-emerald-300" : "text-slate-800"
+        }`}
+      >
+        {code}
+      </pre>
     </div>
+  );
+}
+
+/** Homepage teaser — additive; links to Guide Part 2 */
+function CliCalloutSection({ setView }) {
+  return (
+    <section className="relative max-w-7xl mx-auto px-5 pb-16">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-trust-sm">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="p-2 rounded-lg bg-trust-50 border border-trust-200">
+            <Terminal className="w-5 h-5 text-trust-600" aria-hidden />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">SolGuard, right from your terminal</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-medium">
+            Verifying
+          </span>
+        </div>
+        <p className="text-slate-600 text-sm sm:text-base leading-relaxed max-w-2xl mb-5">
+          Run agents locally with <code className="font-mono text-sm">{SOLGUARD_CLI_NPX}</code> — free credits via
+          SolGuard API, or bring your own OpenAI / Anthropic / Gemini key for local mode. Save reports as JSON. No
+          separate install step.
+        </p>
+        <GuideCodeBlock code={SOLGUARD_CLI_NPX} variant="terminal" />
+        <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setView("guide:cli")}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-trust-300 bg-white text-trust-700 hover:bg-trust-50 transition text-sm font-bold terminal-text tracking-wider"
+          >
+            Full CLI guide <ArrowRight className="w-4 h-4" />
+          </button>
+          <span className="text-xs text-slate-500 font-mono">
+            Package: {SOLGUARD_CLI_PACKAGE} · Node 18+
+          </span>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1266,8 +1324,11 @@ function GuideFieldRow({ name, desc }) {
   );
 }
 
-function Guide({ setView }) {
-  const [part, setPart] = useState("website");
+function Guide({ setView, initialPart = "website" }) {
+  const [part, setPart] = useState(initialPart === "cli" ? "cli" : "website");
+  useEffect(() => {
+    setPart(initialPart === "cli" ? "cli" : "website");
+  }, [initialPart]);
 
   const curlExample = `curl -i -X POST "https://www.solguard.space/api/agents/solana-token-verification/run" \\
   -H "Content-Type: application/json" \\
@@ -1305,7 +1366,7 @@ function Guide({ setView }) {
           className={`flex-1 px-4 py-2.5 rounded-md text-sm font-medium transition flex items-center justify-center gap-2 ${part === "cli" ? "bg-trust-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
         >
           Part 2 — CLI
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono">Beta</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono">Verifying</span>
         </button>
       </nav>
 
@@ -1335,10 +1396,10 @@ function Guide({ setView }) {
               USDC flow is what real-money transactions use right now.
             </p>
             <p className="text-sm text-slate-600 leading-relaxed mb-4">
-              <strong className="text-slate-800">x402 gateway:</strong> SolGuard also runs an{" "}
-              <strong>x402 payment gateway live on Solana devnet across all agents</strong> — automatic HTTP-native
-              micropayments in test mode. <strong>Mainnet x402 is not live yet</strong>; when you pay with real USDC on
-              mainnet, you are not using x402.
+              <strong className="text-slate-800">x402 gateway:</strong>{" "}
+              <strong>x402 payment gateway — live on Solana devnet across all agents · mainnet coming soon.</strong>{" "}
+              Devnet micropayments are for testing. <strong>Mainnet x402 is not live</strong> — when you pay with real
+              USDC on mainnet, you are using credits, subscription, or direct USDC transfer, not x402.
             </p>
             <div className="flex flex-wrap gap-2">
               <X402Chip />
@@ -1413,12 +1474,16 @@ function Guide({ setView }) {
           <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <h2 className="text-xl font-bold text-slate-900">SolGuard CLI</h2>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-medium">Beta</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-medium">Verifying</span>
             </div>
+            <p className="text-sm text-slate-600 leading-relaxed mb-3">
+              Local / BYOK mode is new and still being verified end-to-end with live provider keys. Works in testing —
+              treat it as early access until verification completes.
+            </p>
             <p className="text-sm text-slate-600 leading-relaxed mb-4">
               Run SolGuard agents from your terminal. Requires Node.js 18+. No separate install step:
             </p>
-            <GuideCodeBlock code="npx solguard-cli" />
+            <GuideCodeBlock code={SOLGUARD_CLI_NPX} />
             <p className="text-sm text-slate-600 leading-relaxed mt-4">
               Default path is <strong>local</strong> — no SolGuard free credits required.
             </p>
@@ -1427,7 +1492,7 @@ function Guide({ setView }) {
           <section className="mb-10 p-6 rounded-xl border border-amber-200 bg-amber-50/50">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <h3 className="font-bold text-slate-900">Local mode (recommended)</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono font-medium">Beta</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono font-medium">Verifying</span>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed mb-3">
               Runs on your machine. Bring your own OpenAI, Anthropic, or Gemini API key for AI agents — the key is never
@@ -1452,11 +1517,11 @@ function Guide({ setView }) {
           <section className="mb-10">
             <h3 className="font-bold text-slate-900 mb-3">Local development</h3>
             <GuideCodeBlock code={`# Local mode works without the API:
-npx solguard-cli
+${SOLGUARD_CLI_NPX}
 
 # Free mode against local API:
 npm run dev
-SOLGUARD_API=http://localhost:3000/api npx solguard-cli`} />
+SOLGUARD_API=http://localhost:3000/api ${SOLGUARD_CLI_NPX}`} />
           </section>
         </>
       )}
@@ -1470,7 +1535,7 @@ SOLGUARD_API=http://localhost:3000/api npx solguard-cli`} />
         </button>
       </nav>
       <p className="mt-6 text-xs text-slate-400 text-center sm:text-left leading-relaxed">
-        Pay-per-use verification · USDC on Solana mainnet (live today) · x402 gateway live on devnet · mainnet x402 coming soon
+        <X402FooterTagline />
       </p>
     </div>
   );
@@ -1947,7 +2012,7 @@ export default function App() {
       {topView === "agent" && <AgentPage agentId={params} user={user} ensureWallet={connectWallet} testingModeFreeRuns={testingModeFreeRuns} x402Agents={x402Agents} onReport={(rep) => { setReport(rep); setView(`report:${rep.reportId}`); refreshMe(); refreshAll(); }} setView={setView} />}
       {topView === "report" && <ReportView report={report} setView={setView} />}
       {topView === "subscriptions" && <Subscriptions user={user} ensureWallet={connectWallet} onSubscribed={() => { refreshMe(); setView("dashboard"); }} />}
-      {topView === "guide" && <Guide setView={setView} />}
+      {topView === "guide" && <Guide setView={setView} initialPart={params === "cli" ? "cli" : "website"} />}
       {topView === "watchlist" && user && <Watchlist setView={setView} />}
       {topView === "dashboard" && user && <Dashboard user={user} setView={(v) => { if (v.startsWith("report:")) { (async () => { const r = await api(`/api/reports/${v.split(":")[1]}`); if (r.ok) setReport(r.data); setView(v); })(); } else setView(v); }} overallStats={overallStats} />}
       {topView === "api" && <ApiPage />}

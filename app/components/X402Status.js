@@ -1,7 +1,19 @@
 import { Zap } from "lucide-react";
 
-const X402_TOOLTIP =
-  "HTTP-native micropayments on Solana devnet. Mainnet x402 coming soon. Real mainnet payments today use USDC credits or direct transfer.";
+/** Canonical public x402 framing — real money today is USDC/credits/subscription, not x402. */
+export const X402_TOOLTIP =
+  "HTTP-native micropayments on Solana devnet. Mainnet x402 coming soon. Real mainnet payments today use credits, subscription, or USDC transfer.";
+
+export const X402_HERO =
+  "x402 payment gateway — live on Solana devnet across all agents · mainnet coming soon";
+
+export const X402_CHIP = "x402 gateway (devnet live)";
+
+export const X402_INLINE_DEVNET = "x402 · live on devnet";
+
+export const X402_FOOTER_USDC = "Pay-per-use verification · USDC on Solana mainnet (live today)";
+
+export const X402_FOOTER_X402 = "x402 gateway live on Solana devnet · mainnet x402 coming soon";
 
 const badgeBase = "font-mono text-[10px] sm:text-[11px] tracking-wide";
 
@@ -13,7 +25,7 @@ export function X402HeroPill({ className = "" }) {
       title={X402_TOOLTIP}
     >
       <Zap className="w-3 h-3 text-emerald-600 shrink-0" aria-hidden />
-      x402 payment gateway — live on devnet across all agents · mainnet coming soon
+      {X402_HERO}
     </span>
   );
 }
@@ -27,14 +39,14 @@ export function X402InlineTag({ enabled = false, className = "" }) {
         title={X402_TOOLTIP}
       >
         <Zap className="w-2.5 h-2.5 shrink-0" aria-hidden />
-        x402 · live on devnet
+        {X402_INLINE_DEVNET}
       </span>
     );
   }
   return (
     <span
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-[9px] sm:text-[10px] text-slate-600 ${badgeBase} ${className}`}
-      title="Real mainnet payments use USDC credits or direct transfer"
+      title="Real mainnet payments use credits, subscription, or USDC transfer"
     >
       USDC on mainnet
     </span>
@@ -49,7 +61,7 @@ export function X402Chip({ className = "" }) {
       title={X402_TOOLTIP}
     >
       <Zap className="w-3 h-3 shrink-0" aria-hidden />
-      x402 gateway (devnet live)
+      {X402_CHIP}
     </span>
   );
 }
@@ -67,8 +79,9 @@ export function X402RoadmapItem() {
           <X402InlineTag enabled />
         </div>
         <p className="text-sm text-slate-600 leading-relaxed">
-          The devnet x402 gateway is live across all agents today. Mainnet cutover is the next phase — automatic
-          HTTP-native micropayments without manual transaction signing.
+          The x402 payment gateway is live on Solana devnet across all agents today. Mainnet cutover is the next
+          phase — automatic HTTP-native micropayments without manual transaction signing. Real-money payments today
+          use credits, subscription, or USDC transfer.
         </p>
       </div>
     </li>
@@ -79,9 +92,9 @@ export function X402RoadmapItem() {
 export function X402FooterTagline() {
   return (
     <>
-      <span className="block sm:inline">Pay-per-use verification · USDC on Solana mainnet (live today)</span>
+      <span className="block sm:inline">{X402_FOOTER_USDC}</span>
       <span className="hidden sm:inline"> · </span>
-      <span className="block sm:inline">x402 gateway live on devnet · mainnet x402 coming soon</span>
+      <span className="block sm:inline">{X402_FOOTER_X402}</span>
     </>
   );
 }
