@@ -1,7 +1,7 @@
 {
   "name": "solguard-cli",
-  "version": "0.1.0",
-  "description": "Run SolGuard security agents from your terminal — free credits via SolGuard API or premium local BYOK",
+  "version": "0.1.1",
+  "description": "Run SolGuard security agents locally from your terminal (BYOK) — optional free SolGuard credits",
   "type": "module",
   "bin": {
     "solguard-cli": "./bin/solguard-cli.js"

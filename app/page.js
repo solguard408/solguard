@@ -1419,10 +1419,29 @@ function Guide({ setView }) {
               Run SolGuard agents from your terminal. Requires Node.js 18+. No separate install step:
             </p>
             <GuideCodeBlock code="npx solguard-cli" />
+            <p className="text-sm text-slate-600 leading-relaxed mt-4">
+              Default path is <strong>local</strong> — no SolGuard free credits required.
+            </p>
+          </section>
+
+          <section className="mb-10 p-6 rounded-xl border border-amber-200 bg-amber-50/50">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <h3 className="font-bold text-slate-900">Local mode (recommended)</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono font-medium">Beta</span>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed mb-3">
+              Runs on your machine. Bring your own OpenAI, Anthropic, or Gemini API key for AI agents — the key is never
+              sent to SolGuard. Available for six services (consultant, token verification, wallet, dApp scan, OpenClaw
+              audit, contract audit).
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              On-chain local agents need <code className="font-mono text-sm">HELIUS_API_KEY</code> in your environment.
+              Save reports as <code className="font-mono text-sm">solguard-report-*.json</code> when prompted.
+            </p>
           </section>
 
           <section className="mb-10 p-6 rounded-xl border border-slate-200 bg-white">
-            <h3 className="font-bold text-slate-900 mb-3">Free mode</h3>
+            <h3 className="font-bold text-slate-900 mb-3">Free mode (optional)</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
               Uses the SolGuard API with your CLI identity (<code className="font-mono text-sm">cliInstallId</code> in{" "}
               <code className="font-mono text-sm">~/.solguard/config.json</code>). Includes 2 signup credits — same as
@@ -1430,31 +1449,13 @@ function Guide({ setView }) {
             </p>
           </section>
 
-          <section className="mb-10 p-6 rounded-xl border border-amber-200 bg-amber-50/50">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <h3 className="font-bold text-slate-900">Premium mode</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-mono font-medium">Beta</span>
-            </div>
-            <p className="text-sm text-slate-600 leading-relaxed mb-3">
-              Bring your own OpenAI, Anthropic, or Gemini API key. Runs entirely on your machine — your key is never sent
-              to SolGuard. Available for six services (consultant, token verification, wallet, dApp scan, OpenClaw audit,
-              contract audit).
-            </p>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              On-chain premium agents need <code className="font-mono text-sm">HELIUS_API_KEY</code> in your environment.
-              Save reports locally as <code className="font-mono text-sm">solguard-report-*.json</code> when prompted.
-            </p>
-          </section>
-
           <section className="mb-10">
             <h3 className="font-bold text-slate-900 mb-3">Local development</h3>
-            <GuideCodeBlock code={`# Terminal 1 — start API
-npm run dev
-
-# Terminal 2 — CLI auto-detects localhost:3000
+            <GuideCodeBlock code={`# Local mode works without the API:
 npx solguard-cli
 
-# Or explicit:
+# Free mode against local API:
+npm run dev
 SOLGUARD_API=http://localhost:3000/api npx solguard-cli`} />
           </section>
         </>

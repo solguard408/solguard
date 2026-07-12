@@ -6,6 +6,10 @@ import crypto from "crypto";
 export const DEFAULT_BASE_URL = "https://www.solguard.space/api";
 export const LOCAL_DEV_URL = "http://localhost:3000/api";
 
+function isLocalUrl(url) {
+  return /localhost|127\.0\.0\.1/i.test(url || "");
+}
+
 /** Resolve API base: --api flag > SOLGUARD_API env > config > local dev probe > production. */
 export async function resolveBaseUrl(config, cliArgs = process.argv.slice(2)) {
   const flagIdx = cliArgs.findIndex((a) => a === "--api" || a === "-a");
@@ -15,13 +19,16 @@ export async function resolveBaseUrl(config, cliArgs = process.argv.slice(2)) {
   if (process.env.SOLGUARD_API) {
     return process.env.SOLGUARD_API.replace(/\/$/, "");
   }
+  // Prefer a saved non-default URL, but never stick on dead localhost.
   if (config?.baseUrl && config.baseUrl !== DEFAULT_BASE_URL) {
-    return config.baseUrl.replace(/\/$/, "");
+    const saved = config.baseUrl.replace(/\/$/, "");
+    if (!isLocalUrl(saved)) return saved;
+    if (await probeApi(saved)) return saved;
   }
   if (await probeApi(LOCAL_DEV_URL)) {
     return LOCAL_DEV_URL;
   }
-  return (config?.baseUrl || DEFAULT_BASE_URL).replace(/\/$/, "");
+  return DEFAULT_BASE_URL;
 }
 
 async function probeApi(baseUrl) {
