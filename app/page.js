@@ -526,21 +526,20 @@ function Home({ services, serviceStats, setView, overallStats, exploits }) {
               <Sparkles className="w-3.5 h-3.5" /> MARKETPLACE OF AI SECURITY AGENTS
             </div>
             <X402HeroPill className="mb-6" />
-            <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-tight tracking-tight text-slate-900">
-              Is This <span className="text-trust-600">Token Safe?</span>
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-tight tracking-tight text-slate-900 max-w-xl">
+              DeFi Security Is Broken.{" "}
+              <span className="text-trust-600">We Built Specialized AI Auditors For It.</span>
             </h1>
-            <p className="mt-4 text-xl sm:text-2xl font-bold text-slate-800 max-w-xl leading-snug">
-              Ask <span className="text-trust-600">SolGuard.</span> Get a real answer in seconds, not hours.
-            </p>
             <p className="mt-5 text-slate-600 max-w-lg text-base sm:text-lg leading-relaxed">
-              SolGuard isn&apos;t one scanner. It&apos;s 5 comprehensive security services powered by 16+ analysis engines. Pick the exact verification you need. Pay only $0.10 USDC per run — or subscribe.
+              SolGuard isn&apos;t one scanner. It&apos;s a marketplace of 16+ specialized AI security agents. Pick the
+              exact analysis you need. Pay only $0.10 USDC per run — or subscribe.
             </p>
             <div className="mt-8 w-full sm:max-w-md flex flex-col gap-3">
               <button
                 onClick={() => setView("explorer")}
                 className="w-full px-7 py-3.5 rounded-lg bg-trust-600 text-white font-bold hover:bg-trust-500 transition terminal-text tracking-wider neon-glow flex items-center justify-center gap-2"
               >
-                EXPLORE SECURITY SERVICES <ArrowRight className="w-4 h-4" />
+                EXPLORE SECURITY AGENTS <ArrowRight className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setView("subscriptions")}
