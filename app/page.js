@@ -19,6 +19,12 @@ import { openShareToX } from "@/lib/solguard/shareToX";
 import { ensurePhantomProvider, sendUsdcPayment } from "@/lib/solguard/usdcPaymentClient";
 import { freeCreditButtonLabel } from "@/lib/solguard/credits";
 import { SOLGUARD_CLI_NPX, SOLGUARD_CLI_PACKAGE } from "@/lib/solguard/cliPackage";
+import {
+  SOLGUARD_OFFICIAL_TOKEN_CA,
+  SOLGUARD_OFFICIAL_TOKEN_PUMPFUN_URL,
+  SOLGUARD_OFFICIAL_TOKEN_DEXSCREENER_URL,
+  truncateTokenCa,
+} from "@/lib/solguard/officialToken";
 import { shouldUseX402, runAgentViaX402 } from "@/lib/solguard/x402Run";
 
 // --- icon map (server returns icon name as string)
@@ -512,6 +518,49 @@ function Header({ view, setView, user, onConnect, onLogout, connecting, walletEr
 }
 
 // ===================== HOME =====================
+/** Minimal hero CA chip — copy full address or open pump.fun */
+function HeroTokenCaPill({ className = "" }) {
+  const [copied, setCopied] = useState(false);
+  const truncated = truncateTokenCa(SOLGUARD_OFFICIAL_TOKEN_CA);
+
+  function copyCa(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(SOLGUARD_OFFICIAL_TOKEN_CA);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 max-w-full rounded-full border border-slate-200 bg-white pl-3 pr-1 py-1 text-slate-700 ${className}`}
+      title={SOLGUARD_OFFICIAL_TOKEN_CA}
+    >
+      <span className="text-[10px] font-mono tracking-wide text-slate-400 uppercase shrink-0">CA</span>
+      <code className="font-mono text-xs text-slate-800 tracking-tight truncate">{truncated}</code>
+      <button
+        type="button"
+        onClick={copyCa}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-slate-500 hover:text-trust-700 hover:bg-trust-50 transition shrink-0"
+        aria-label={`Copy official token address ${SOLGUARD_OFFICIAL_TOKEN_CA}`}
+        title={copied ? "Copied" : "Copy CA"}
+      >
+        {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+      <a
+        href={SOLGUARD_OFFICIAL_TOKEN_PUMPFUN_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-slate-500 hover:text-trust-700 hover:bg-trust-50 transition shrink-0"
+        aria-label="Open official token on pump.fun"
+        title="pump.fun"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </a>
+    </div>
+  );
+}
+
 function Home({ services, serviceStats, setView, overallStats, exploits }) {
   return (
     <div className="relative overflow-hidden">
@@ -522,9 +571,7 @@ function Home({ services, serviceStats, setView, overallStats, exploits }) {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(320px,540px)] gap-8 lg:gap-10 xl:gap-12 items-start lg:max-w-6xl lg:mx-auto">
           {/* Left — copy & CTAs */}
           <div className="flex flex-col items-start text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-trust-200 bg-trust-50 text-trust-700 text-xs terminal-text tracking-widest mb-3">
-              <Sparkles className="w-3.5 h-3.5" /> MARKETPLACE OF AI SECURITY AGENTS
-            </div>
+            <HeroTokenCaPill className="mb-3" />
             <X402HeroPill className="mb-6" />
             <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-tight tracking-tight text-slate-900 max-w-xl">
               DeFi Security Is Broken.{" "}
@@ -627,6 +674,8 @@ function Home({ services, serviceStats, setView, overallStats, exploits }) {
       </section>
 
       <CliCalloutSection setView={setView} />
+
+      <OfficialTokenCard />
 
       {/* Exploit Watch teaser */}
       {exploits && exploits.length > 0 && (
@@ -1294,6 +1343,76 @@ function CliCalloutSection({ setView }) {
           <span className="text-xs text-slate-500 font-mono">
             Package: {SOLGUARD_CLI_PACKAGE} · Node 18+
           </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Official token CA — verification reference only; no price or investment claims. */
+function OfficialTokenCard() {
+  const [copied, setCopied] = useState(false);
+  const truncated = truncateTokenCa(SOLGUARD_OFFICIAL_TOKEN_CA);
+
+  function copyCa() {
+    navigator.clipboard.writeText(SOLGUARD_OFFICIAL_TOKEN_CA);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <section className="relative max-w-7xl mx-auto px-5 pb-16">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <div className="p-2 rounded-lg bg-white border border-slate-200">
+            <ShieldCheck className="w-5 h-5 text-trust-600" aria-hidden />
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Official SolGuard Token (CA)</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-trust-50 text-trust-700 border border-trust-200 font-mono font-medium">
+            Verify here
+          </span>
+        </div>
+        <p className="text-xs sm:text-sm text-slate-500 mb-4 max-w-2xl leading-relaxed">
+          Always verify this address against solguard.space before trusting any token claiming to be SolGuard elsewhere.
+        </p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+          <div
+            className="flex-1 min-w-0 flex items-center px-4 py-3 rounded-lg border border-slate-200 bg-white"
+            title={SOLGUARD_OFFICIAL_TOKEN_CA}
+          >
+            <code className="font-mono text-sm sm:text-base text-slate-800 tracking-tight">
+              {truncated}
+            </code>
+          </div>
+          <button
+            type="button"
+            onClick={copyCa}
+            className="inline-flex items-center justify-center gap-1.5 shrink-0 px-4 py-3 rounded-lg border border-slate-200 bg-white text-[11px] terminal-text text-slate-600 hover:border-trust-300 hover:text-trust-700 transition"
+            title={`Copy full address: ${SOLGUARD_OFFICIAL_TOKEN_CA}`}
+            aria-label={`Copy official SolGuard token address ${SOLGUARD_OFFICIAL_TOKEN_CA}`}
+          >
+            <Copy className="w-3.5 h-3.5" /> {copied ? "COPIED" : "COPY"}
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+          <a
+            href={SOLGUARD_OFFICIAL_TOKEN_PUMPFUN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-trust-300 hover:text-trust-700 transition text-sm font-medium"
+          >
+            pump.fun <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+          <a
+            href={SOLGUARD_OFFICIAL_TOKEN_DEXSCREENER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-trust-300 hover:text-trust-700 transition text-sm font-medium"
+          >
+            DexScreener <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
     </section>
